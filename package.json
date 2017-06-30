@@ -1,0 +1,25 @@
+{
+  "name": "chainsaw",
+  "version": "1.0.0",
+  "description": "\"Hub for watching the events and cutting chainsaw\" ",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node ./app/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SpankChain/chainsaw.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/SpankChain/chainsaw/issues"
+  },
+  "homepage": "https://github.com/SpankChain/chainsaw#readme",
+  "dependencies": {
+    "body-parser": "^1.17.2",
+    "express": "^4.15.3",
+    "node-webhooks": "^1.2.4"
+  }
+}
