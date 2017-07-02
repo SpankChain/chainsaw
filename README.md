@@ -1,7 +1,6 @@
 In order to run hub + chainsaw .
-Do the following . Soon and hub and chainsaw will be split in to different modules .
-#Step 1 :
-npm install
+Run the following :
+1) npm install
+2) npm start
 
-#Step 2:
-npm start 
+#TODO: Hub and chainsaw will split into separate modules soon .
