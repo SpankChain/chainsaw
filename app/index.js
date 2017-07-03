@@ -41,18 +41,38 @@ const addHook = (contractEvent, contractHook) => {
 const deleteHook = (contractEvent, contractHook) => {
   // Todo : Delete an webhook, will implement
   // this soon .
+  jsonfile.readFile(webhookFile, function(err, obj) {
+    if (!err) {
+      let hooks = obj[contractEvent];
+      for (let i = 0; i < hooks.length; i++)
+        if (hooks[i] == contractHook) {
+          // Remove the hook from the array
+          hooks.splice(i, 1);
+          break;
+        }
+
+      // write to file now
+      jsonfile.writeFile(webhookFile, obj, function(err) {
+        console.log(err);
+      });
+    } else {
+      // Some error handling here .
+      console.log(err);
+    }
+
+  })
 }
 
-const findEventAndWatch = (contractEvent, contractHook) => {
+const findEventAndWatch = (contractEvent, contractHook, channelId) => {
   switch (contractEvent) {
     case 'DidDeposit':
-      chainsaw.didDepositEvent();
+      chainsaw.didDepositEvent(channelId);
       break;
     case 'DidSettle':
-      chainsaw.didSettleEvent();
+      chainsaw.didSettleEvent(channelId);
       break;
     case 'DidStartSettle':
-      chainsaw.didStartSettleEvent();
+      chainsaw.didStartSettleEvent(channelId);
       break;
     default:
       break;
@@ -83,28 +103,43 @@ app.post("/register/event", (req, res) => {
 
   // Adding the data to hook .
   addHook(contractEvent, contractHook);
+  // Find the event and watch them.
+  findEventAndWatch(contractEvent, contractHook, "");
 
-  findEventAndWatch(contractEvent, contractHook);
   res.end(`{'Ok' : 200 }`);
 });
 
 app.delete("/register/event", (req, res) => {
   const contractEvent = req.body.event;
-  const contractAddress = req.body.contractAddress;
   const contractHook = req.body.hook;
+
+  // Delete the hook .
+  deleteHook(contractEvent, contractHook);
 
   res.end(`{'Ok' : 200 }`);
 });
 
 app.post("/register/channel", (req, res) => {
   const channelId = req.body.channelId;
+  const contractEvent = req.body.event;
   const contractHook = req.body.hook;
 
+  // Adding hook for the event
+  addHook(contractEvent, contractHook);
+
+  //Find and watch events
+  findEventAndWatch(contractEvent, contractHook, channelId);
+
+  res.end(`{'Ok' : 200 }`);
 });
 
 app.delete("/register/channel", (req, res) => {
   const channelId = req.body.channelId;
   const contractHook = req.body.hook;
+  const contractEvent = req.body.event;
+
+  // Delete the hook for the channel.
+  deleteHook(contractEvent, contractHook);
 
 });
 
