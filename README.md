@@ -1,6 +1,8 @@
-In order to run hub + chainsaw .
-Run the following :
-1) npm install
-2) npm start
 
-#TODO: Hub and chainsaw will split into separate modules soon .
+Chainsaw Usage :
+
+1) Clone this repository https://github.com/SpankChain/chainsaw.git .
+2) In your nodejs code , add the following .
+```
+chainsaw = require('path_to_chainsaw/lib/chainsaw.js');
+```
