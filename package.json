@@ -24,6 +24,7 @@
     "mongo": "^0.1.0",
     "mongojs": "^2.4.0",
     "node-webhooks": "^1.2.4",
-    "requestify": "^0.2.5"
+    "requestify": "^0.2.5",
+    "web3": "^0.19.1"
   }
 }

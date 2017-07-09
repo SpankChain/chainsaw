@@ -1,6 +1,6 @@
 {
-  "MONGO_URL":"mongodb://127.0.0.1:27017/chainsaw",
-  "SOLIDTY_CONTRACT_SRC":"./contracts/contracts/Broker.sol",
-  "CONTRACT_ADDRESS": "0x04d3d808e0c6d9aabeee09b1809250ec4ab08205",
-  "WEB3_PROVIDER": "http://127.0.0.1:8545"
+	"MONGO_URL": "mongodb://127.0.0.1:27017/chainsaw",
+	"SOLIDTY_CONTRACT_SRC": "./contracts/contracts/Broker.sol",
+	"CONTRACT_ADDRESS": "0xC365a7C7D222b781E7B50a95e005D89243Fc650D",
+	"WEB3_PROVIDER": "https://ropsten.infura.io/"
 }
