@@ -19,8 +19,10 @@
   "homepage": "https://github.com/SpankChain/chainsaw#readme",
   "dependencies": {
     "body-parser": "^1.17.2",
+    "chai": "^4.1.0",
     "express": "^4.15.3",
     "jsonfile": "^3.0.0",
+    "mocha": "^3.4.2",
     "mongo": "^0.1.0",
     "mongojs": "^2.4.0",
     "node-webhooks": "^1.2.4",
