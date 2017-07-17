@@ -25,6 +25,7 @@
     "mongojs": "^2.4.0",
     "node-webhooks": "^1.2.4",
     "requestify": "^0.2.5",
+    "solc": "^0.4.13",
     "web3": "^0.19.1"
   }
 }
