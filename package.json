@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node ./app/index.js"
+    "start": "node ./app/index.js",
+    "mocha": "mocha ./tests/loader_test.js -R spec --timeout 20000"
   },
   "repository": {
     "type": "git",
@@ -17,9 +18,29 @@
     "url": "https://github.com/SpankChain/chainsaw/issues"
   },
   "homepage": "https://github.com/SpankChain/chainsaw#readme",
+  "devDependencies": {
+    "babel-eslint": "^6.0.2",
+    "babel-preset-env": "^1.4.0",
+    "babel-preset-stage-2": "^6.5.0",
+    "babel-register": "^6.18.0",
+    "chai": "^3.5.0",
+    "eslint": "^3.19.0",
+    "eslint-config-standard": "^10.2.1",
+    "eslint-plugin-import": "^2.2.0",
+    "eslint-plugin-node": "^4.2.2",
+    "eslint-plugin-promise": "^3.5.0",
+    "eslint-plugin-standard": "^3.0.1",
+    "ethereumjs-testrpc": "^3.0.3"
+  },
   "dependencies": {
+    "abi-decoder": "^1.0.8",
     "body-parser": "^1.17.2",
     "chai": "^4.1.0",
+    "es6-promisify": "^5.0.0",
+    "es7": "^1.0.1",
+    "ethjs-contract": "^0.1.9",
+    "ethjs-provider-http": "^0.1.6",
+    "ethjs-query": "^0.2.9",
     "express": "^4.15.3",
     "jsonfile": "^3.0.0",
     "mocha": "^3.4.2",
@@ -27,7 +48,7 @@
     "mongojs": "^2.4.0",
     "node-webhooks": "^1.2.4",
     "requestify": "^0.2.5",
-    "solc": "^0.4.13",
+    "solc": "^0.4.15",
     "web3": "^0.19.1"
   }
 }
