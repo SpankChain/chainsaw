@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node ./app/index.js",
-    "mocha": "mocha ./tests/loader_test.js -R spec --timeout 20000"
+    "mocha": "mocha ./tests/loader_test.js -R spec --timeout 200000"
   },
   "repository": {
     "type": "git",

@@ -91,13 +91,13 @@ describe('chainsaw', () => {
         await revertSnapshot(snapshots.pop())
       })
 
-      it('[getLogsByBlockNumber test with no logs/events]', async() => {
+      it.skip('[getLogsByBlockNumber test with no logs/events]', async() => {
         await mineBlocks(1)
         const logsInTheBlock = chainsaw.getLogsByBlockNumber(web3.eth.blockNumber)
         assert.equal(logsInTheBlock.length, 0)
       })
 
-      it('[getLogsByBlockNumber test with logs/events]', async () => {
+      it.skip('[getLogsByBlockNumber test with logs/events]', async () => {
         // Create an event in the block
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
         const logsInTheBlock = chainsaw.getLogsByBlockNumber(web3.eth.blockNumber)[0][0]
@@ -105,12 +105,12 @@ describe('chainsaw', () => {
         assert.isArray(logsInTheBlock.topics, 'Topics should be an array')
       })
 
-      it('[A block with no logs/events]', async () => {
+      it.skip('[A block with no logs/events]', async () => {
         await mineBlocks(1)
         assert.equal(chainsaw.getLogs().length, 0)
       })
 
-      it('[A block with decoded logs/events]', async () => {
+      it.skip('[A block with decoded logs/events]', async () => {
         // Create an event by calling method on the contract
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
         const eventLog = chainsaw.getLogs()[0][0]
@@ -129,7 +129,7 @@ describe('chainsaw', () => {
         await revertSnapshot(snapshots.pop())
       })
 
-      it('[Get decoded logs/events for block range]', async() => {
+      it.skip('[Get decoded logs/events for block range]', async() => {
         const startBlock = web3.eth.blockNumber
 
         // Create a new event
@@ -143,7 +143,53 @@ describe('chainsaw', () => {
         const endBlock = web3.eth.blockNumber
 
         const logs = chainsaw.getLogs(startBlock, endBlock)
-        console.log("logs returned", logs)
+
+        console.log('logs : ', logs)
+      })
+
+      it.skip('[Test invalid block range]', () => {
+        const startBlock = -1
+        const endBlock = web3.eth.blockNumber + 100
+        const logs = chainsaw.getLogs(startBlock, endBlock)
+        console.log('logs: ', logs)
+      })
+    })
+
+    describe('[Test polling]', () => {
+      // before(async() => {
+      //   snapshots.push(await takeSnapshot())
+      // })
+      // after(async() => {
+      //   await revertSnapshot(snapshots.pop())
+      // })
+      it.skip('[Basic Polling]', async () => {
+        // Call an contract method to mine a new block
+        await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
+        await contractInstance.deposit('0x222342', {value: 20})
+        chainsaw.turnOnPolling(function (error, response) {
+          if (!error) {
+            console.log('Log response', response)
+          }
+        })
+
+        await wait(3000)
+        await contractInstance.deposit('0x222342', {value: 20})
+
+        await wait(15000)
+      })
+    })
+
+    describe('[with Chainsaw initialized with contract addresses]', () => {
+      // Initialize chainsaw with contract address
+      let chainsawWithContractAddress
+      before(async() => {
+        chainsawWithContractAddress = new Chainsaw(web3, [contractInstance.address])
+      })
+
+      it('[Test with chainsaw initialization ]', async() => {
+        await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
+        const logs = chainsawWithContractAddress.getLogs()
+        console.log('Logs chainsaw', logs)
       })
     })
   })
