@@ -1,2 +1,3 @@
 require('babel-register')
-require('./chainsaw.js')
+require('./auctionIntegrationMock.js')
+//require('./chainsaw.js')

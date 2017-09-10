@@ -5,8 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node ./app/index.js",
-    "mocha": "mocha ./tests/loader_test.js -R spec --timeout 200000"
+    "start": "node ./output/server.js",
+    "mocha": "mocha ./tests/loader_test.js -R spec --timeout 200000",
+    "transpile": "babel example lib js -d output",
+    "start-example": "npm run transpile && npm start"
   },
   "repository": {
     "type": "git",
@@ -19,8 +21,10 @@
   },
   "homepage": "https://github.com/SpankChain/chainsaw#readme",
   "devDependencies": {
+    "babel-cli": "^6.26.0",
     "babel-eslint": "^6.0.2",
-    "babel-preset-env": "^1.4.0",
+    "babel-preset-env": "^1.6.0",
+    "babel-preset-es2015": "^6.24.1",
     "babel-preset-stage-2": "^6.5.0",
     "babel-register": "^6.18.0",
     "chai": "^3.5.0",
@@ -38,6 +42,7 @@
     "chai": "^4.1.0",
     "es6-promisify": "^5.0.0",
     "es7": "^1.0.1",
+    "ethereumjs-abi": "^0.6.4",
     "ethjs-contract": "^0.1.9",
     "ethjs-provider-http": "^0.1.6",
     "ethjs-query": "^0.2.9",
@@ -47,8 +52,12 @@
     "mongo": "^0.1.0",
     "mongojs": "^2.4.0",
     "node-webhooks": "^1.2.4",
+    "pg-async": "^3.1.0",
     "requestify": "^0.2.5",
-    "solc": "^0.4.15",
+    "secp256k1": "^3.3.0",
+    "sinon": "^3.2.1",
+    "solc": "^0.4.16",
+    "util": "^0.10.3",
     "web3": "^0.19.1"
   }
 }

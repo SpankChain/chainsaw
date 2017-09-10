@@ -27,7 +27,8 @@ export default async function (opts) {
   const noDeploy = opts.noDeploy
   const defaultAcct = opts.defaultAcct ? opts.defaultAcct : 0
   const defaultContract = opts.defaultContract || DEFAULT_CONTRACT
-  const defaultContractFormat = `${defaultContract}:`+ defaultContract.slice(0, defaultContract.indexOf('.'))
+//  const input = opts.input || {defaultContract: fs.readFileSync(SOL_PATH + defaultContract).toString()}
+  const defaultContractFormat = `${defaultContract}:` + defaultContract.slice(0, defaultContract.indexOf('.'))
 
   // START TESTRPC PROVIDER
   let provider
@@ -35,10 +36,9 @@ export default async function (opts) {
     provider = new HttpProvider(opts.testRPCProvider)
   } else {
     provider = TestRPC.provider({
-      mnemonic: mnemonic,
+      mnemonic: mnemonic
     })
   }
-
   // START TESTRPC SERVER
   if (opts.testRPCServer) {
     console.log('setting up testrpc server')
@@ -55,7 +55,6 @@ export default async function (opts) {
   // COMPILE THE CONTRACT
   const input = {}
   input[defaultContract] = fs.readFileSync(SOL_PATH + defaultContract).toString()
-
   const output = solc.compile({ sources: input }, 1)
   if (output.errors) { console.log(Error(output.errors)) }
 
@@ -71,6 +70,87 @@ export default async function (opts) {
   if (!noDeploy) {
     // DEPLOY THE CONTRACT
     contractTxHash = await contractInstance.new()
+    await wait(1500)
+    // USE THE ADDRESS FROM THE TX RECEIPT TO BUILD THE CONTRACT OBJECT
+    contractReceipt = await eth.getTransactionReceipt(contractTxHash)
+    contractObject = contractInstance.at(contractReceipt.contractAddress)
+  }
+
+  // MAKE WEB3
+  const web3 = new Web3()
+  web3.setProvider(provider)
+  web3.eth.defaultAccount = accounts[0]
+
+  return contractObject
+}
+
+export async function setupAuction (opts) {
+  opts = opts || {}
+  const mnemonic = opts.mnemonic || MNEMONIC
+  const testRPCServer = opts.testRPCServer
+  const port = opts.port || TESTRPC_PORT
+  const noDeploy = opts.noDeploy
+  const defaultAcct = opts.defaultAcct ? opts.defaultAcct : 0
+  const defaultContract = opts.defaultContract || DEFAULT_CONTRACT
+  const input = opts.input || {defaultContract: fs.readFileSync(SOL_PATH + defaultContract).toString()}
+  const constructParams = opts.constructParams || {}
+  const defaultContractFormat = `${defaultContract}:` + defaultContract.slice(0, defaultContract.indexOf('.'))
+
+  // START TESTRPC PROVIDER
+  let provider
+  if (opts.testRPCProvider) {
+    provider = new HttpProvider(opts.testRPCProvider)
+  } else {
+    provider = TestRPC.provider({
+      mnemonic: mnemonic
+    })
+  }
+  // START TESTRPC SERVER
+  if (opts.testRPCServer) {
+    console.log('setting up testrpc server')
+    await p(TestRPC.server({
+      mnemonic: mnemonic
+    }).listen)(port)
+  }
+
+  // BUILD ETHJS ABSTRACTIONS
+  const eth = new Eth(provider)
+  const contract = new EthContract(eth)
+  const accounts = await eth.accounts()
+
+  // COMPILE THE CONTRACT
+  // const input = {}
+  // input[defaultContract] = fs.readFileSync(SOL_PATH + defaultContract).toString()
+  const output = solc.compile({ sources: input }, 1)
+  if (output.errors) { console.log(Error(output.errors)) }
+
+  const abi = JSON.parse(output.contracts[defaultContractFormat].interface)
+  const bytecode = output.contracts[defaultContractFormat].bytecode
+
+  // PREPARE THE CONTRACT ABSTRACTION OBJECT
+  const contractInstance = contract(abi, bytecode, {
+    from: accounts[defaultAcct],
+    gas: 3000000
+  })
+  let contractTxHash, contractReceipt, contractObject
+  if (!noDeploy) {
+    // DEPLOY THE AUCTION CONTRACT
+    contractTxHash = await contractInstance.new(
+      constructParams['tokenSupply'],
+      constructParams['tokenName'],
+      constructParams['tokenDecimals'],
+      constructParams['tokenSymbol'],
+      constructParams['weiWallet'],
+      constructParams['tokenWallet'],
+      constructParams['minDepositInWei'],
+      constructParams['minWeiToRaise'],
+      constructParams['maxWeiToRaise'],
+      constructParams['minTokensForSale'],
+      constructParams['maxTokensForSale'],
+      constructParams['maxTokenBonusPercentage'],
+      constructParams['depositWindowInBlocks'],
+      constructParams['processingWindowInBlocks']
+    )
     await wait(1500)
     // USE THE ADDRESS FROM THE TX RECEIPT TO BUILD THE CONTRACT OBJECT
     contractReceipt = await eth.getTransactionReceipt(contractTxHash)

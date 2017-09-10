@@ -1,100 +1,138 @@
-pragma solidity ^0.4.11;
-
+pragma solidity 0.4.16;
 import {SafeMath} from './SafeMath.sol';
 import {HumanStandardToken} from './HumanStandardToken.sol';
-import {IERC20Token} from './IERC20Token.sol';
+import 'ECVerify.sol'
+
 /*
     Two phase auction:
-    1. deposit phase (begins when start function is properly called, ends when process bid phase begins)
-    2. process bid phase (ends when auction ends)
-    
-    Auction states a minimum/maximum amount of WEI to raise and a minimum/maximum number of tokens to sell. Both conditions are set at deployment and need to be met for a successful auction. In the case of an unsuccessful auction, buyers withdraw their entire deposit and no tokens are given.
+    1. deposit phase
+    - begins when contract is deployed, ends when process bid phase begins
+    - initial and incremental deposits must be equal or greater than the minimum deposit defined at contract deployment
+    - buyers submit deposits on-chain
+    - buyers submit signed bids off-chain (a total bid amount in WEI and a max price per token)
+    2. process bid phase
+    - ends when auction ends
+    - strike price must be set before off-chain signed bids can be processed
+    - when all bids have been processed, owner can call completeSuccessfulAuction to end auction
+    - the auction will fail if the auction ends and does not meet success conditions
 
-    The trade-off between flexibility and attack surface area results in an increased number of parameters to set at contract deployment. Once the auction starts, the goal is to minimize adversarial damage.
+    Auction success conditions (defined at contract deployment) :
+    - amount raised is between a minimum and maximum WEI amount
+    - tokens sold are between a minimum and maximum number of tokens
+
+    A successful auction ends when all four conditions are met and the owner calls completeSuccessfulAuction() in time.
+    If an auction fails, buyers can withdraw their deposit and no tokens are distributed.
+
+    Withdrawl :
+    - owner calls ownerWithdraw()
+        - a successful auction enables owner to transfer ETH and remaining tokens to wallet addresses defined at deployment
+        - a failed auction provides no value transfer for the owner
+    - buyers withdraw by calling withdraw()
+        - a successful auction results in :
+            - transfer of remaining deposit to buyer
+            - transfer of sold tokens to buyer
+        - a failed auction provides the buyer with a full deposit withdrawl
+
+    Other contraints set at deployment :
+    - minimum buyer deposit (applied to initial and incemental deposits)
+    - maximum bonus token percentage that can be applied to a bid
+
+    NOTES :
+    - optimized for clarity and simplicity
+    - cancelAuction() can be called by owner before an auction ends causing auction to fail
+    - emergencyToggle() can be called by owner to prevent some functions from executing successfully
+    - inspired by Nick Johnson's auction contract : https://gist.github.com/Arachnid/b9886ef91d5b47c31d2e3c8022eeea27
+    - meant to be instructive yet practical. Please improve on this!
 */
 
 contract Auction {
     using SafeMath for uint256;
-    /******************************************************
-    EVENTS
-    ******************************************************/
-    event DepositEvent(address indexed buyer, uint weiDeposited);
-    event SetStrikePriceEvent(uint strikePrice);
-    event ProcessBidEvent(address indexed buyer, uint numTokensPurchased, uint totalCostInWei); 
-    event AuctionSuccessEvent(uint blockNumber, uint strikePrice, uint totalTokensSold, uint totalWeiRaised);
-    event WithdrawEvent(address indexed buyer, uint tokensReceived, uint unspentDeposit);
 
-    /******************************************************
+    /*****
+    EVENTS
+    ******/
+    event DepositEvent(uint blockNumber, address indexed buyerAddress, uint depositInWei, uint totalDepositInWei);
+    event SetStrikePriceEvent(uint blockNumber, uint strikePriceInWei);
+    event ProcessBidEvent(uint blockNumber, address indexed buyerAddress, uint tokensPurchased, uint purchaseAmountInWei);
+    event AuctionSuccessEvent(uint blockNumber, uint strikePriceInWei, uint totalTokensSold, uint totalWeiRaised);
+    event WithdrawEvent(uint blockNumber, address indexed buyerAddress, uint tokensReceived, uint unspentDepositInWei);
+
+    /***********************************
     VARIABLES SET AT CONTRACT DEPLOYMENT
-    ******************************************************/
+    ************************************/
     // ADDRESSES DEFINED AT DEPLOYMENT
-    IERC20Token token;
-    address public owner;
-    address public weiWallet; 
+    address public ownerAddress;
+    address public weiWallet;
     address public tokenWallet;
-    
-    // USE BLOCK NUMBER TO TRANSITION TO OTHER PHASES
-    uint public processingPhaseStartBlock; // Block number at which processing phase begins
-    uint public auctionEndBlock; // Block number at which auction ends
-    
-    // GLOBAL AUCTION CONTSTRAINTS
-    uint public minWeiToRaise; // minimum number of WEI to raise 
-    uint public maxWeiToRaise; // maximum number of WEI to raise
-    uint public minTokensForSale; // minimum number of tokens for sale
-    uint public maxTokensForSale; // minimum number of tokens for sale
-    uint public maxTokenBonusPercentage; // maximum percentage allowed for token bonus percentage
-    
-    // DEPOSIT CONSTRAINT
+
+    // TOKEN PROPERTIES
+    HumanStandardToken public token;
+    uint public tokenSupply;
+    string public tokenName;
+    uint8 public tokenDecimals;
+    string tokenSymbol;
+
+    // USE BLOCK NUMBER TO TRANSITION PHASES
+    uint public processingPhaseStartBlock;
+    uint public auctionEndBlock;
+
+    // GLOBAL AUCTION CONDITIONS
+    uint public minWeiToRaise;
+    uint public maxWeiToRaise;
+    uint public minTokensForSale;
+    uint public maxTokensForSale;
+
+    // OTHER AUCTION CONSTRAINTS
+    uint public maxTokenBonusPercentage;
     uint public minDepositInWei;
 
-    /******************************************************
-    VARIABLES SET SOMETIME AFTER AUCTION DEPLOYMENT
-    ******************************************************/
-    uint public strikePrice; // strike price
-    bool public emergencyFlag = false; // if true, prevents certain methods from executing
-    
-    /******************************************************
-    INTERNAL ACCOUNTING PARAMETERS
-    ******************************************************/
-    uint initialTokenBalance; // token balance set when contract is deployed
+    /*************************************
+    VARIABLES SET AFTER AUCTION DEPLOYMENT
+    **************************************/
+    uint public strikePriceInWei;
+    bool public emergencyFlag;
+
+    /******************
+    INTERNAL ACCOUNTING
+    *******************/
     struct Buyer {
-        uint depositInWei;
-        uint bidWeiAmount;
-        uint totalTokens;
-        bool hasWithdrawn;
+        uint depositInWei;  // running total of buyer's deposit
+        uint bidWeiAmount;  // bid amount in WEI from off-chain signed bid
+        uint totalTokens;   // total amount of tokens to distribute to buyer
+        bool hasWithdrawn;  // bool to check if buyer has withdrawn
     }
-    mapping(address => Buyer) public allBuyers;// mapping of addresses to Buyer struct
+    mapping(address => Buyer) public allBuyers; // mapping of address to buyer (Buyer struct)
     uint public totalTokensSold; // running total of tokens from processed bids
     uint public totalWeiRaised; // running total of WEI raised from processed bids
-    bool public auctionSuccess; // did auction end fulfilling all constraints 
-    bool public ownerHasWithdrawn; // bool to check if owner has withdrawn after auction has ended
-    
-    /******************************************************
+    bool public auctionSuccess; // bool indicating if auction ended meeting all conditions
+    bool public ownerHasWithdrawn; // bool to check if owner has withdrawn
+
+    /********
     MODIFIERS
-    ******************************************************/
+    *********/
     modifier in_deposit_phase {
         require(block.number < processingPhaseStartBlock);
         _;
     }
 
     modifier in_bid_processing_phase {
-        require(block.number >= processingPhaseStartBlock);
+        require(processingPhaseStartBlock <= block.number);
         require(block.number < auctionEndBlock);
         _;
     }
 
-    modifier auction_complete { 
-        require(block.number >= auctionEndBlock);
+    modifier auction_complete {
+        require(auctionEndBlock <= block.number);
         _;
     }
 
     modifier strike_price_set {
-        require(strikePrice > 0);
+        require(0 < strikePriceInWei);
         _;
     }
 
     modifier owner_only {
-        require(msg.sender == owner);
+        require(msg.sender == ownerAddress);
         _;
     }
 
@@ -102,199 +140,223 @@ contract Auction {
         require(emergencyFlag == false);
         _;
     }
-    
-    /******************************************************
-    @dev Auction(): constructor for Auction contact
-    The constructor defines :
-    * token address of token to sell
+
+    /*************************************************************************************************
+    * token parameters :
+        _tokenSupply : total supply of tokens
+        _tokenName : token human readable name
+        _tokenDecimals : decimal precision for display purposes
+        _tokenSymbol : the token symbol for display purposes
 
     * wallets :
-        _weiWallet : wallet address to transfer WEI only if auction is successful
-        _tokenWallet : wallet address to transfer tokens after auction ends
-        
-    * deposits :
-        _minDepositInWei : minimum deposit accepted in WEI
+        _weiWallet : wallet address to transfer WEI after a successful auction
+        _tokenWallet : wallet address to transfer remaining tokens after a successful auction
+
+    * deposit constraint :
+        _minDepositInWei : minimum deposit accepted in WEI (for an initial or incremental deposit)
 
     * auction constraints :
-        a successful auction will raise at least the minimum and at most the maximum number of WEI 
+        a successful auction will raise at least the minimum and at most the maximum number of WEI
         _minWeiToRaise : minimum WEI to raise for a successful auction
         _maxWeiToRaise : maximum WEI to raise for a successful auction
 
         a successful auction will sell at least the minimum and at most the maximum number of tokens
         _minTokensForSale : minimum tokens to sell for a successful auction
         _maxTokensForSale : maximum tokens to sell for a successful auction
-    
-    * token bonus precentage ceiling :
-        _maxTokenBonusPercentage : maximum percentage bonus that can be applied when processing bids
 
-    * phase windows :
-        depositWindowInBlocks : the number of blocks that the deposit phase will last
-        processingWindowInBlocks : the number of blocks that the processing phase will last 
-    ******************************************************/
-    function Auction(IERC20Token _token, address _weiWallet, address _tokenWallet, uint _minDepositInWei, uint _minWeiToRaise, uint _maxWeiToRaise, uint _minTokensForSale, uint _maxTokensForSale, uint _maxTokenBonusPercentage) {        
+    * bonus precentage cap :
+        _maxTokenBonusPercentage : maximum token percentage bonus that can be applied when processing bids
+    ************************************************************************************************/
+    function Auction(
+        uint _tokenSupply,
+        string _tokenName,
+        uint8 _tokenDecimals,
+        string _tokenSymbol,
+        address _weiWallet,
+        address _tokenWallet,
+        uint _minDepositInWei,
+        uint _minWeiToRaise,
+        uint _maxWeiToRaise,
+        uint _minTokensForSale,
+        uint _maxTokensForSale,
+        uint _maxTokenBonusPercentage,
+        uint _depositWindowInBlocks,
+        uint _processingWindowInBlocks) {
+
+        require(0 < _depositWindowInBlocks);
+        require(0 < _processingWindowInBlocks);
+        require(0 < _minDepositInWei);
+        require(_minDepositInWei <= _minWeiToRaise);
+        require(_minWeiToRaise < _maxWeiToRaise);
+        require(0 < _minTokensForSale);
+        require(_minTokensForSale < _maxTokensForSale);
+
+        ownerAddress = msg.sender;
+
+        tokenSupply = _tokenSupply;
+        tokenName = _tokenName;
+        tokenDecimals = _tokenDecimals;
+        tokenSymbol = _tokenSymbol;
+
+        weiWallet = _weiWallet;
+        tokenWallet = _tokenWallet;
+
+        minDepositInWei = _minDepositInWei;
         minWeiToRaise = _minWeiToRaise;
         maxWeiToRaise = _maxWeiToRaise;
         minTokensForSale = _minTokensForSale;
         maxTokensForSale = _maxTokensForSale;
         maxTokenBonusPercentage = _maxTokenBonusPercentage;
-        minDepositInWei = _minDepositInWei;
 
-        token = _token;
-        owner = msg.sender;
-        weiWallet = _weiWallet;
-        tokenWallet = _tokenWallet;
+        processingPhaseStartBlock = block.number + _depositWindowInBlocks;
+        auctionEndBlock = processingPhaseStartBlock + _processingWindowInBlocks;
+
+        token = new HumanStandardToken(tokenSupply, tokenName, tokenDecimals, tokenSymbol);
+        require(token.transfer(this, token.totalSupply()));
+        require(token.balanceOf(this) == token.totalSupply());
+        require(maxTokensForSale <= token.balanceOf(this));
     }
 
-    // ASSUMPTION : token transfer happens after contract deployment but before start
-    // ensure that configuration parameters are within logical limits
-    // can only be called once
-    // starts the deposit phase at current block number
-    function start(uint depositWindowInBlocks, uint processingWindowInBlocks) owner_only {
-        require(processingPhaseStartBlock == 0);
-        require(auctionEndBlock == 0);
-
-        require(minWeiToRaise > 0);
-        require(minWeiToRaise < maxWeiToRaise);
-        require(minTokensForSale > 0);
-        require(minTokensForSale < maxTokensForSale);
-        require(token.balanceOf(this) > maxTokensForSale);
-
-        processingPhaseStartBlock = block.number + depositWindowInBlocks;
-        auctionEndBlock = processingPhaseStartBlock + processingWindowInBlocks;
-    }
-
-    /******************************************************
+    /**************
     BUYER FUNCTIONS
-    ******************************************************/
+    ***************/
+
     // fallback function reverts
     function() {
         revert();
     }
 
-    // buyers can deposit only in the deposit phase
-    // buyers can deposit as many times as they want to during the deposit phase
-    function depositInWEI() not_in_emergency in_deposit_phase payable {
-        require(msg.value >= minDepositInWei); // make sure that the buyer deposits minimum
+    // buyers can deposit as many time as they want during the deposit phase
+    function deposit() not_in_emergency in_deposit_phase payable {
+        require(minDepositInWei <= msg.value);
         Buyer storage buyer = allBuyers[msg.sender];
-		buyer.depositInWei += msg.value;
-        DepositEvent(msg.sender, msg.value);
+		buyer.depositInWei = SafeMath.add(buyer.depositInWei, msg.value);
+
+        DepositEvent(block.number, msg.sender, msg.value, buyer.depositInWei);
     }
 
-    // buyers can succefully withdraw at most once after the auction is over
-    // if the auction is over and all the constraints have been met, the auction is successful
-    // if the auction is over and constraints have NOT been met, the auction is cancelled
-    // upon successful auction :
-    // - buyers can withdraw tokens and remaining deposit if their bid was successfully processed
-    // - buyers can only withdraw their entire deposit if their bid was not processed
-    // upon cancelled auction :
-    // - buyers can only withdraw their entire deposit
+    // buyers can succefully withdraw once after the auction is over
+    // - if the auction ends and all conditions have been met, the auction was successful
+    // - if the auction ends and any condition has not been met, the auction has failed
+    // successful auction : buyers can withdraw tokens and remaining deposit
+    // failed auction : buyers can only withdraw their deposit
     function withdraw() auction_complete {
         Buyer storage buyer = allBuyers[msg.sender];
         require(buyer.hasWithdrawn == false);
         buyer.hasWithdrawn = true;
+        require(minDepositInWei <= buyer.depositInWei);
 
-        require(buyer.depositInWei >= minDepositInWei); // check to see if buyer meets minimum required desposit 
         if (auctionSuccess) {
-            require(token.transfer(msg.sender, buyer.totalTokens)); // TODO : IMPORTANT!!!! make transfer tests fail
-            msg.sender.transfer(SafeMath.sub(buyer.depositInWei, buyer.bidWeiAmount)); // TODO : IMPORTANT!!!! make transfer tests fail
+            require(token.transfer(msg.sender, buyer.totalTokens));
+            msg.sender.transfer(SafeMath.sub(buyer.depositInWei, buyer.bidWeiAmount));
         } else {
-            msg.sender.transfer(buyer.depositInWei); // TODO : IMPORTANT!!!! make transfer tests fail
+            msg.sender.transfer(buyer.depositInWei);
         }
-        WithdrawEvent(msg.sender, buyer.totalTokens, SafeMath.sub(buyer.depositInWei, buyer.bidWeiAmount));
+
+        WithdrawEvent(block.number, msg.sender, buyer.totalTokens, SafeMath.sub(buyer.depositInWei, buyer.bidWeiAmount));
     }
 
-    /******************************************************
+    /*******************
     OWNER ONLY FUNCTIONS
-    ******************************************************/
-    // NOTE : a strike price must be set during the bid processing phase or the auction will be cancelled
-    // make sure the strike price is greater than zero
+    ********************/
+
+    // the strike price can only be set during the bid processing phase
+    // the strike price must be greater than zero
     // the strike price can only be set once
-    function setStrikPrice(uint _strikePrice) not_in_emergency in_bid_processing_phase owner_only {
-        require(strikePrice == 0); // ensures that the strikePrice can only be successfully set once
-        require(_strikePrice > 0);
-        strikePrice = _strikePrice;
-        SetStrikePriceEvent(strikePrice);
+    function setStrikePrice(uint _strikePriceInWei) not_in_emergency in_bid_processing_phase owner_only {
+        require(strikePriceInWei == 0);
+        require(minDepositInWei <= _strikePriceInWei);
+        require(0 < _strikePriceInWei);
+        strikePriceInWei = _strikePriceInWei;
+
+        SetStrikePriceEvent(block.number, strikePriceInWei);
     }
 
-    // the bid processing phase begins as soon as the deposit phase ends
-    // ASSUMPTION, off-chain bidding :
+    // off-chain bidding :
     // - signed off-chain bids are submitted during the deposit phase
-    // - a bid states a max token price in WEI and a total bid amount in WEI
-    // a strike price must be set before any bids can be processed
-    // a bid in WEI must be greater than zero
-    // a bidder can only have at most one successful processed bid
-    // after a strike price is set, selected bids are processed
-    // signature verification validates a bid
-    // a bid may include a token bonus which must not be a negative number and less than the max token bonus
-    // after a bid is successfully processed, the total WEI to collect and total tokens to sell are updated 
-    // failure to meet constraints during the bid processing phase will result in a cancelled auction
-    function processBid(uint tokenBidPriceInWei, uint bidWeiAmount, uint tokenBonusPercentage, uint8 v, bytes32 r, bytes32 s) not_in_emergency in_bid_processing_phase strike_price_set owner_only { 
-        require(bidWeiAmount > 0);
-        require(tokenBidPriceInWei >= strikePrice);
-        require(tokenBonusPercentage >= 0);
+    // - a bid states a token price in WEI and a total bid amount in WEI
+    // - owner processes signed off-chain bids
+    // the bid processing phase begins as soon as the deposit phase ends
+    // a strike price must be set before bids can be processed
+    // a bid must be greater than minimum deposit requirement
+    // a bid must be equal or greater than the strike price
+    // the total bid amount must be equal or greater than the bid's token price
+    // a buyer address can only be associated with the first successful processed bid
+    // signature verification is used to determine the buyer address
+    // after a bid is successfully processed, the total WEI to collect and total tokens to sell are updated
+    // check the total funds raised and number of tokens sold are equal or below the maximum auction success conditions
+    function processBid(uint tokenBidPriceInWei, uint bidWeiAmount, uint tokenBonusPercentage, uint8 v, bytes32 r, bytes32 s)
+    strike_price_set
+    not_in_emergency
+    in_bid_processing_phase
+    owner_only
+    {
+        require(minDepositInWei < bidWeiAmount);
+        require(strikePriceInWei <= tokenBidPriceInWei);
+        require(tokenBidPriceInWei <= bidWeiAmount);
+
+        require(0 <= tokenBonusPercentage);
         require(tokenBonusPercentage <= maxTokenBonusPercentage);
 
-        var bidHash = sha256(address(this), tokenBidPriceInWei, bidWeiAmount); // REVIEW
-        var buyerAddress = ecrecover(bidHash, v, r, s); // REVIEW
-        
-        Buyer storage buyer = allBuyers[buyerAddress];
-        require(bidWeiAmount <= buyer.depositInWei);
-        require(buyer.bidWeiAmount == 0); 
-        
-        uint numTokensPurchased = SafeMath.div(bidWeiAmount, strikePrice);
+        var bidHash = sha3(address(this), tokenBidPriceInWei, bidWeiAmount);
+        var buyerAddress = ecrecover(bidHash, v, r, s);
+
+        uint numTokensPurchased = SafeMath.div(bidWeiAmount, strikePriceInWei);
         uint numBonusTokens = SafeMath.div( SafeMath.mul(tokenBonusPercentage, numTokensPurchased), 100 );
+
+        Buyer storage buyer = allBuyers[buyerAddress];
+        //require(bidWeiAmount <= buyer.depositInWei);
+        require(buyer.bidWeiAmount == 0);
+
         buyer.totalTokens = SafeMath.add(numBonusTokens, numTokensPurchased);
         buyer.bidWeiAmount = bidWeiAmount;
 
-        totalTokensSold += buyer.totalTokens;
-        totalWeiRaised += buyer.bidWeiAmount;
-        ProcessBidEvent(buyerAddress, buyer.totalTokens, buyer.bidWeiAmount);
-    }
+        totalTokensSold = SafeMath.add(buyer.totalTokens, totalTokensSold);
+        totalWeiRaised = SafeMath.add(buyer.bidWeiAmount, totalWeiRaised);
 
-    // can only be successfully called once
-    // called after bids have been successfully processed
-    // checks to see if all auction constraints have been met
-    // checks that the contract has enough tokens to sell
-    // if all constraints are meet, end auction successfully
-    function completeSuccessfulAuction() not_in_emergency strike_price_set in_bid_processing_phase owner_only {
-        require(totalTokensSold <= token.balanceOf(this));
-        require(totalTokensSold >= minTokensForSale);
         require(totalTokensSold <= maxTokensForSale);
-        require(totalWeiRaised >= minWeiToRaise);
         require(totalWeiRaised <= maxWeiToRaise);
 
-        auctionEndBlock = block.number;
-        auctionSuccess = true; // IMPORTANT : make sure that this line comes after ALL require statements
-        AuctionSuccessEvent(block.number, strikePrice, totalTokensSold, totalWeiRaised);
+        ProcessBidEvent(block.number, buyerAddress, buyer.totalTokens, buyer.bidWeiAmount);
     }
 
+    // called after bids have been processed to end auction
+    // must be called in order for an auction to be successful
+    // checks to see that all auction conditions have been met
+    // checks to see that the contract has enough tokens to sell
+    // if all conditions are meet, ends auction successfully
+    function completeSuccessfulAuction() strike_price_set not_in_emergency in_bid_processing_phase owner_only {
+        require(totalTokensSold <= token.balanceOf(this));
+        require(minTokensForSale <= totalTokensSold); // maxTokensForSale check done in processBid
+        require(minWeiToRaise <= totalWeiRaised); // maxWeiToRaise check done in processBid
+
+        auctionEndBlock = block.number;
+        auctionSuccess = true;
+
+        AuctionSuccessEvent(block.number, strikePriceInWei, totalTokensSold, totalWeiRaised);
+    }
+
+    // called by owner after auction is over
     // can only be successfully called once
-    // if the auction is over and all the constraints have been met, the auction is successful
-    // if the auction is over and constraints have NOT been met, the auction is cancelled
-    // upon successful auction :
-    // - collected WEI is transferred to weiWallet and remaining tokens transferred to tokenWallet
-    // upon cancelled auction :
-    // - tokens are transferred to tokenWallet
+    // - successful auction : WEI is transferred to weiWallet and remaining tokens are transferred to tokenWallet
+    // - failed auction : value tranfer does not occur
     function ownerWithdraw()  auction_complete owner_only {
         require(ownerHasWithdrawn == false);
-        require(totalTokensSold <= token.balanceOf(this));
         ownerHasWithdrawn = true;
         if (auctionSuccess) {
-            weiWallet.transfer(totalWeiRaised); // TODO : IMPORTANT!!!! make transfer tests fail
-            require(token.transfer(tokenWallet, SafeMath.sub( token.balanceOf(this), totalTokensSold) ));// TODO : IMPORTANT!!!! make transfer tests fail
-        } else {
-            require(token.transfer(tokenWallet, token.balanceOf(this))); // TODO : IMPORTANT!!!! make transfer tests fail
+            weiWallet.transfer(totalWeiRaised);
+            require(token.transfer(tokenWallet, SafeMath.sub( token.balanceOf(this), totalTokensSold) ));
         }
     }
 
-    // can only be called by owner if the auction has not yet ended
-    // cancels auction 
+    // can only be successfully called by owner if the auction has not yet ended
+    // causes auction to fail
     function cancelAuction() owner_only {
         require(block.number < auctionEndBlock);
-        auctionEndBlock = block.number;
+        auctionEndBlock = 0;
     }
 
-    // prevents : deposits, bid processing, setting strike price and successfully completing auction
+    // prevents some functions from successfully executing
     function emergencyToggle() owner_only {
         emergencyFlag = !emergencyFlag;
     }

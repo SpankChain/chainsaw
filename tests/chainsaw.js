@@ -14,7 +14,7 @@ const fs = require('fs')
 const contractPath = `${__dirname}/../contracts/StubPaymentChannel.sol`
 // TODO : Import the configs from chainsaw configs .
 
-let web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
+const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
 
 describe('chainsaw', () => {
   let snapshots = []
@@ -101,6 +101,7 @@ describe('chainsaw', () => {
 
       it('[Function.getLogsByBlockNumber - with undecoded logs/events]', async () => {
         // Create an event in the block
+        // No
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
         const logsInTheBlock = chainsaw.getLogsByBlockNumber(web3.eth.blockNumber)[0][0]
         assert.equal(logsInTheBlock.address.length, 42)
@@ -173,7 +174,7 @@ describe('chainsaw', () => {
         }
       })
 
-      it.skip('[Function:getLogs - Test invalid block range]', () => {
+      it('[Function:getLogs - Test invalid block range]', () => {
         // TODO : Fix this test This causes infinite loop , investigate
         let startBlock = -1
         let endBlock = web3.eth.blockNumber + 100
@@ -207,7 +208,7 @@ describe('chainsaw', () => {
       // after(async() => {
       //   await revertSnapshot(snapshots.pop())
       // })
-      it('[Basic Polling]', async () => {
+      it.skip('[Basic Polling]', async () => {
         // Call an contract method to mine a new block
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
         await contractInstance.deposit('0x222342', {value: 20})
@@ -220,21 +221,18 @@ describe('chainsaw', () => {
           }
         })
       })
-    })
-
-    describe('[with Chainsaw initialized with contract addresses]', () => {
-      // Initialize chainsaw with contract address
-      let chainsawWithContractAddress
-      before(async() => {
-        // TODO : Deploy multiple contracts, test chainsaw logs extractions.
-        chainsawWithContractAddress = new Chainsaw(web3, [contractInstance.address])
-      })
-
-      it.skip('[Test with chainsaw initialization ]', async() => {
-        // TODO : Finish this test
+      it('[Polling - TurnOnPolling First]', async () => {
+        chainsaw.turnOnPolling(function (error, response) {
+          if (!error) {
+            if (response.length > 0) {
+              assert.isArray(response[0][0].events, 'Events is array of parameter')
+              assert.equal(response[0][0].address, contractInstance.address)
+            }
+          }
+        })
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
-        const logs = chainsawWithContractAddress.getLogs()
-        console.log('Logs chainsaw', logs)
+        await contractInstance.deposit('0x222342', {value: 20})
+        await wait(2000)
       })
     })
   })
