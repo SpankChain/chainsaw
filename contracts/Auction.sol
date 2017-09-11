@@ -1,7 +1,6 @@
 pragma solidity 0.4.16;
 import {SafeMath} from './SafeMath.sol';
 import {HumanStandardToken} from './HumanStandardToken.sol';
-import 'ECVerify.sol'
 
 /*
     Two phase auction:
@@ -230,7 +229,7 @@ contract Auction {
     function deposit() not_in_emergency in_deposit_phase payable {
         require(minDepositInWei <= msg.value);
         Buyer storage buyer = allBuyers[msg.sender];
-		buyer.depositInWei = SafeMath.add(buyer.depositInWei, msg.value);
+		    buyer.depositInWei = SafeMath.add(buyer.depositInWei, msg.value);
 
         DepositEvent(block.number, msg.sender, msg.value, buyer.depositInWei);
     }

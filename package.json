@@ -38,11 +38,13 @@
   },
   "dependencies": {
     "abi-decoder": "^1.0.8",
+    "bn": "^1.0.1",
     "body-parser": "^1.17.2",
     "chai": "^4.1.0",
     "es6-promisify": "^5.0.0",
     "es7": "^1.0.1",
     "ethereumjs-abi": "^0.6.4",
+    "ethereumjs-util": "^5.1.2",
     "ethjs-contract": "^0.1.9",
     "ethjs-provider-http": "^0.1.6",
     "ethjs-query": "^0.2.9",
