@@ -7,8 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node ./output/server.js",
     "mocha": "mocha ./tests/loader_test.js -R spec --timeout 200000",
-    "transpile": "babel example lib js -d output",
-    "start-example": "npm run transpile && npm start"
+    "transpile": "babel testRunner lib js utils -d output",
+    "testRunner": "npm run transpile && npm start"
   },
   "repository": {
     "type": "git",
@@ -57,6 +57,7 @@
     "pg-async": "^3.1.0",
     "requestify": "^0.2.5",
     "secp256k1": "^3.3.0",
+    "simple-spinner": "0.0.5",
     "sinon": "^3.2.1",
     "solc": "^0.4.16",
     "util": "^0.10.3",

@@ -1,6 +1,0 @@
-{
-	"MONGO_URL": "mongodb://127.0.0.1:27017/chainsaw",
-	"SOLIDTY_CONTRACT_SRC": "contracts/contracts/Broker.sol",
-	"CONTRACT_ADDRESS": "0x2442c99e247393943756e937ef1e40530b7bfd36",
-	"WEB3_PROVIDER": "http://localhost:8545"
-}

@@ -4,7 +4,6 @@ import Web3 from 'web3'
 import { sha3 } from 'ethereumjs-util'
 import { Chainsaw } from '../lib/chainsaw.js'
 import setup from '../js/setup'
-const util = require('util')
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -14,11 +13,11 @@ const fs = require('fs')
 const contractPath = `${__dirname}/../contracts/StubPaymentChannel.sol`
 // TODO : Import the configs from chainsaw configs .
 
-const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
+let web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"))
 
 describe('chainsaw', () => {
   let snapshots = []
-  let chainsaw
+  const chainsaw = new Chainsaw(web3)
   let contractInstance
 
   const takeSnapshot = () => {
@@ -73,7 +72,6 @@ describe('chainsaw', () => {
     const content = fs.readFileSync(contractPath)
     const compiledContract = solc.compile(content.toString(), 1)
     const abi = compiledContract.contracts[':StubPaymentChannel'].interface
-    chainsaw = new Chainsaw(web3, [contractInstance.address])
     chainsaw.addABI(JSON.parse(abi))
   })
 
@@ -93,27 +91,26 @@ describe('chainsaw', () => {
         await revertSnapshot(snapshots.pop())
       })
 
-      it('[Function:getLogsByBlockNumber - no logs/events]', async() => {
+      it.skip('[getLogsByBlockNumber test with no logs/events]', async() => {
         await mineBlocks(1)
         const logsInTheBlock = chainsaw.getLogsByBlockNumber(web3.eth.blockNumber)
         assert.equal(logsInTheBlock.length, 0)
       })
 
-      it('[Function.getLogsByBlockNumber - with undecoded logs/events]', async () => {
+      it.skip('[getLogsByBlockNumber test with logs/events]', async () => {
         // Create an event in the block
-        // No
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
         const logsInTheBlock = chainsaw.getLogsByBlockNumber(web3.eth.blockNumber)[0][0]
         assert.equal(logsInTheBlock.address.length, 42)
         assert.isArray(logsInTheBlock.topics, 'Topics should be an array')
       })
 
-      it('[Function:getLogs - no logs/events]', async () => {
+      it.skip('[A block with no logs/events]', async () => {
         await mineBlocks(1)
         assert.equal(chainsaw.getLogs().length, 0)
       })
 
-      it('[Function:getLogs - with decoded logs/events]', async () => {
+      it.skip('[A block with decoded logs/events]', async () => {
         // Create an event by calling method on the contract
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
         const eventLog = chainsaw.getLogs()[0][0]
@@ -132,29 +129,8 @@ describe('chainsaw', () => {
         await revertSnapshot(snapshots.pop())
       })
 
-      it('[Function:getLogs - decoded logs for startBlock/endBlock range]', async() => {
+      it.skip('[Get decoded logs/events for block range]', async() => {
         // TODO: Finish these set of tests
-        const expectedEvents = ['DidCreateChannel', 'DidDeposit']
-        const eventParams = [
-          [
-            { name: 'viewer',
-              type: 'address',
-              value: web3.eth.accounts[0] },
-            { name: 'broadcaster',
-              type: 'address',
-              value: web3.eth.accounts[2] },
-            { name: 'channelId',
-              type: 'bytes32',
-              value: '0x2223420000000000000000000000000000000000000000000000000000000000' }
-          ],
-          [
-            { name: 'channelId',
-              type: 'bytes32',
-              value: '0x2223420000000000000000000000000000000000000000000000000000000000' },
-            { name: 'amount', type: 'uint256', value: '20' }
-          ]
-        ]
-
         const startBlock = web3.eth.blockNumber
 
         // Create a new event
@@ -164,75 +140,61 @@ describe('chainsaw', () => {
         await mineBlocks(3)
 
         await contractInstance.deposit('0x222342', {value: 20})
+
         const endBlock = web3.eth.blockNumber
+
         const logs = chainsaw.getLogs(startBlock, endBlock)
 
-        for (let i = 0; i < expectedEvents.length; i++) {
-          assert.equal(logs[i][0].name, expectedEvents[i])
-          assert.equal(logs[i][0].address, contractInstance.address)
-          assert.deepEqual(logs[i][0].events, eventParams[i])
-        }
+        console.log('logs : ', logs)
       })
 
-      it('[Function:getLogs - Test invalid block range]', () => {
+      it.skip('[Test invalid block range]', () => {
         // TODO : Fix this test This causes infinite loop , investigate
-        let startBlock = -1
-        let endBlock = web3.eth.blockNumber + 100
-
-        try {
-          const logs = chainsaw.getLogs(startBlock, endBlock)
-        } catch (error) {
-          assert.equal(error.message, 'Invalid startBlock: Must be below web3.eth.blockNumber or startBlock cannot be below 0')
-        }
-        startBlock = web3.eth.blockNumber + 1
-        endBlock = web3.eth.blockNumber
-
-        try {
-          const logs = chainsaw.getLogs(startBlock, endBlock)
-        } catch (error) {
-          assert.equal(error.message, 'Invalid startBlock: Must be below endBlock')
-        }
-
-        startBlock = 6
-        endBlock = 5
-
-        try {
-          const logs = chainsaw.getLogs(startBlock, endBlock)
-        } catch (error) {
-          assert.equal(error.message, 'Invalid startBlock: Must be below endBlock')
-        }
+        const startBlock = -1
+        const endBlock = web3.eth.blockNumber + 100
+        const logs = chainsaw.getLogs(startBlock, endBlock)
+        console.log('logs: ', logs)
       })
     })
 
     describe('[Test polling]', () => {
+      // before(async() => {
+      //   snapshots.push(await takeSnapshot())
+      // })
       // after(async() => {
       //   await revertSnapshot(snapshots.pop())
       // })
-      it.skip('[Basic Polling]', async () => {
+      it('[Basic Polling]', async () => {
         // Call an contract method to mine a new block
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
         await contractInstance.deposit('0x222342', {value: 20})
 
         chainsaw.turnOnPolling(function (error, response) {
           if (!error) {
+            console.log('Response value', response)
             assert.isAbove(response.length, 0)
-            assert.isArray(response[0][0].events, 'Events is array of parameter')
+            assert.isArray(response[0][0].event, 'Events is array of parameter')
             assert.equal(response[0][0].address, contractInstance.address)
           }
         })
-      })
-      it('[Polling - TurnOnPolling First]', async () => {
-        chainsaw.turnOnPolling(function (error, response) {
-          if (!error) {
-            if (response.length > 0) {
-              assert.isArray(response[0][0].events, 'Events is array of parameter')
-              assert.equal(response[0][0].address, contractInstance.address)
-            }
-          }
-        })
-        await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
+        await wait(20000)
         await contractInstance.deposit('0x222342', {value: 20})
-        await wait(2000)
+      })
+    })
+
+    describe('[with Chainsaw initialized with contract addresses]', () => {
+      // Initialize chainsaw with contract address
+      let chainsawWithContractAddress
+      before(async() => {
+        // TODO : Deploy multiple contracts, test chainsaw logs extractions.
+        chainsawWithContractAddress = new Chainsaw(web3, [contractInstance.address])
+      })
+
+      it('[Test with chainsaw initialization ]', async() => {
+        // TODO : Finish this test
+        await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
+        const logs = chainsawWithContractAddress.getLogs()
+        console.log('Logs chainsaw', logs)
       })
     })
   })

@@ -3,6 +3,86 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
+exports.setupAuction = undefined;
+
+let setupAuction = exports.setupAuction = (() => {
+  var _ref2 = _asyncToGenerator(function* (opts) {
+    opts = opts || {};
+    const mnemonic = opts.mnemonic || MNEMONIC;
+    const testRPCServer = opts.testRPCServer;
+    const port = opts.port || TESTRPC_PORT;
+    const noDeploy = opts.noDeploy;
+    const defaultAcct = opts.defaultAcct ? opts.defaultAcct : 0;
+    const defaultContract = opts.defaultContract || DEFAULT_CONTRACT;
+    const input = opts.input || { defaultContract: _fs2.default.readFileSync(SOL_PATH + defaultContract).toString() };
+    const constructParams = opts.constructParams || {};
+    const defaultContractFormat = `${defaultContract}:` + defaultContract.slice(0, defaultContract.indexOf('.'));
+
+    // START TESTRPC PROVIDER
+    let provider;
+    if (opts.testRPCProvider) {
+      provider = new _ethjsProviderHttp2.default(opts.testRPCProvider);
+    } else {
+      provider = _ethereumjsTestrpc2.default.provider({
+        mnemonic: mnemonic
+      });
+    }
+    // START TESTRPC SERVER
+    if (opts.testRPCServer) {
+      console.log('setting up testrpc server');
+      yield (0, _es6Promisify2.default)(_ethereumjsTestrpc2.default.server({
+        mnemonic: mnemonic
+      }).listen)(port);
+    }
+
+    // BUILD ETHJS ABSTRACTIONS
+    const eth = new _ethjsQuery2.default(provider);
+    const contract = new _ethjsContract2.default(eth);
+    const accounts = yield eth.accounts();
+
+    // COMPILE THE CONTRACT
+    // const input = {}
+    // input[defaultContract] = fs.readFileSync(SOL_PATH + defaultContract).toString()
+    const output = _solc2.default.compile({ sources: input }, 1);
+    if (output.errors) {
+      console.log(Error(output.errors));
+    }
+
+    const abi = JSON.parse(output.contracts[defaultContractFormat].interface);
+    const bytecode = output.contracts[defaultContractFormat].bytecode;
+
+    // PREPARE THE CONTRACT ABSTRACTION OBJECT
+    const contractInstance = contract(abi, bytecode, {
+      from: accounts[defaultAcct],
+      gas: 3000000
+    });
+    let contractTxHash, contractReceipt, contractObject;
+    if (!noDeploy) {
+      // DEPLOY THE AUCTION CONTRACT
+      contractTxHash = yield contractInstance.new(constructParams['tokenSupply'], constructParams['tokenName'], constructParams['tokenDecimals'], constructParams['tokenSymbol'], constructParams['weiWallet'], constructParams['tokenWallet'], constructParams['minDepositInWei'], constructParams['minWeiToRaise'], constructParams['maxWeiToRaise'], constructParams['minTokensForSale'], constructParams['maxTokensForSale'], constructParams['maxTokenBonusPercentage'], constructParams['depositWindowInBlocks'], constructParams['processingWindowInBlocks']);
+      yield wait(1500);
+      // USE THE ADDRESS FROM THE TX RECEIPT TO BUILD THE CONTRACT OBJECT
+      contractReceipt = yield eth.getTransactionReceipt(contractTxHash);
+      contractObject = contractInstance.at(contractReceipt.contractAddress);
+    }
+
+    // MAKE WEB3
+    const web3 = new _web2.default();
+    web3.setProvider(provider);
+    web3.eth.defaultAccount = accounts[0];
+
+    return contractObject;
+  });
+
+  return function setupAuction(_x2) {
+    return _ref2.apply(this, arguments);
+  };
+})();
+
+// async/await compatible setTimeout
+// http://stackoverflow.com/questions/38975138/is-using-async-in-settimeout-valid
+// await wait(2000)
+
 
 var _fs = require('fs');
 
@@ -62,6 +142,7 @@ exports.default = (() => {
     const noDeploy = opts.noDeploy;
     const defaultAcct = opts.defaultAcct ? opts.defaultAcct : 0;
     const defaultContract = opts.defaultContract || DEFAULT_CONTRACT;
+    //  const input = opts.input || {defaultContract: fs.readFileSync(SOL_PATH + defaultContract).toString()}
     const defaultContractFormat = `${defaultContract}:` + defaultContract.slice(0, defaultContract.indexOf('.'));
 
     // START TESTRPC PROVIDER
@@ -73,7 +154,6 @@ exports.default = (() => {
         mnemonic: mnemonic
       });
     }
-
     // START TESTRPC SERVER
     if (opts.testRPCServer) {
       console.log('setting up testrpc server');
@@ -90,7 +170,6 @@ exports.default = (() => {
     // COMPILE THE CONTRACT
     const input = {};
     input[defaultContract] = _fs2.default.readFileSync(SOL_PATH + defaultContract).toString();
-
     const output = _solc2.default.compile({ sources: input }, 1);
     if (output.errors) {
       console.log(Error(output.errors));
@@ -126,10 +205,5 @@ exports.default = (() => {
     return _ref.apply(this, arguments);
   };
 })();
-
-// async/await compatible setTimeout
-// http://stackoverflow.com/questions/38975138/is-using-async-in-settimeout-valid
-// await wait(2000)
-
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));

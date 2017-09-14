@@ -40,9 +40,14 @@ class Chainsaw {
     if (block && block['hash']) {
       let transactionHashes = block['transactions'];
       return transactionHashes.map(tx => {
+        // We need to get the transactions sender and receiver
+        let transactionData = this.eth.getTransaction(tx);
         // If no logs for a transaction it is omitted
-        let receipt = this.web3.eth.getTransactionReceipt(tx);
+        let receipt = this.eth.getTransactionReceipt(tx);
         if (receipt && receipt['logs']) {
+          receipt['logs']['timestamp'] = block['timestamp'];
+          receipt['logs']['sender'] = transactionData['from'];
+          receipt['logs']['receiver'] = transactionData['to'];
           return receipt['logs'];
         }
       }).filter(a => a.length > 0);
@@ -58,6 +63,23 @@ class Chainsaw {
   addABI(abi) {
     abiDecoder.addABI(abi);
   }
+
+  /*
+  ** Utility function to construct
+  ** decoded logs to return
+  **/
+  constructLogs(dLog, i, decodedLogs, logsInTheBlock) {
+    dLog['logIndex'] = decodedLogs[i]['logIndex'];
+    dLog['blockHash'] = decodedLogs[i]['blockHash'];
+    dLog['blockNumber'] = decodedLogs[i]['blockNumber'];
+    dLog['contractAddress'] = decodedLogs[i]['address'];
+    dLog['sender'] = logsInTheBlock[i]['sender'];
+    dLog['receiver'] = logsInTheBlock[i]['receiver'];
+    dLog['eventType'] = dLog['name'];
+    dLog['fields'] = dLog['events'];
+    dLog['ts'] = logsInTheBlock[i]['timestamp'];
+    return dLog;
+  }
   /**
   ** Given an startBlock and endBlock range, decoded logs are returned.
   ** Params -
@@ -65,7 +87,6 @@ class Chainsaw {
   **  endBlock: End block to read the block.(default: latest block)
   **/
   getLogs(startBlock = this.eth.blockNumber, endBlock = this.eth.blockNumber) {
-    console.log('StartBlock and endBlock', startBlock, endBlock);
     if (startBlock > this.eth.blockNumer || startBlock < 0) {
       throw new Error('Invalid startBlock: Must be below web3.eth.blockNumber or startBlock cannot be below 0');
     }
@@ -81,17 +102,21 @@ class Chainsaw {
     let logs = [];
     for (let i = startBlock; i <= endBlock; i++) {
       const logsInTheBlock = this.getLogsByBlockNumber(i);
-      console.log('Logs in the Block', logsInTheBlock);
       logs.push(logsInTheBlock.map(log => {
         log = log.filter(a => this.contractAddresses.indexOf(a.address) >= 0);
-        return abiDecoder.decodeLogs(log);
+        let decodedLogs = abiDecoder.decodeLogs(log);
+        // Formating decoded logs to add extra data needed.
+        decodedLogs = decodedLogs.map((dLog, i) => {
+          return this.constructLogs(dLog, i, log, logsInTheBlock);
+        });
+        return decodedLogs;
       }).filter(a => a.length > 0));
     }
 
     // // Flatten the logs array
     logs = logs.reduce((prev, curr) => {
       return prev.concat(curr);
-    }).filter(a => a.length > 0);
+    }, []).filter(a => a.length > 0);
 
     return logs;
   }
@@ -104,13 +129,13 @@ class Chainsaw {
     let strictlyLess = true;
 
     while (this.lastReadBlockNumber <= this.eth.blockNumber) {
-
       if (strictlyLess) {
         yield this.getLogs(this.lastReadBlockNumber, this.eth.blockNumber);
       }
-
       if (this.lastReadBlockNumber === this.eth.blockNumber) {
         strictlyLess = false;
+        // If there is no new block , yield empty list
+        yield [];
       } else {
         strictlyLess = true;
         this.lastReadBlockNumber = this.eth.blockNumber;
@@ -119,7 +144,7 @@ class Chainsaw {
   }
 
   /**
-  ** Recursive runPolling functions. (Recommended not to call this function
+  ** Recursive polling function. (Recommended not to call this function
   ** directly.) Best usage pattern would be call turnOnPolling(handler).
   ** Termination condition for runPolling is when isPolling = false.
   **/
@@ -127,22 +152,16 @@ class Chainsaw {
     var _this = this;
 
     return _asyncToGenerator(function* () {
-      console.log('1');
       if (!_this.isPolling) {
         // End polling if isPolling is set to false.
         return;
       }
 
-      console.log('2');
-      console.log('blockNumbers', _this.lastReadBlockNumber, _this.eth.blockNumber);
       if (!_this.generator) {
         _this.generator = _this.getLogsGenerator();
       }
-      //  this.generator = this.getLogsGenerator()
-
-      console.log('generator value', _this.generator);
+      // console.log('blocknumbers', this.lastReadBlockNumber, this.eth.blockNumber)
       const logsP = _this.generator.next();
-      console.log('logsP', logsP);
       if (logsP.value) {
         handler(null, logsP.value);
       }
