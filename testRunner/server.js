@@ -25,6 +25,10 @@ let scoAuction
 // Saves all the events tests assertion
 let events = []
 
+app.listen(3000, function () {
+  console.log('Auction Contract Deployment')
+})
+
 const randomIntFromInterval = (min, max) => {
   return Math.floor(Math.random() * (max - min + 1) + min)
 }
@@ -45,7 +49,7 @@ const getSig = (tokenBidPriceInWei = 696969696969696969, bidWeiAmount = 99999999
 
 const chainLogEvents = async (error, response) => {
   if (!error && response.length > 0) {
-    // Insert the auction to database
+    // Insert the auction event to database
     events.push(response[0][0])
     await scoAuction.insertAuctionEvent(response[0][0])
   }
@@ -75,11 +79,14 @@ const mineBlocks = (count) => {
 const assertDB = async () => {
   const sqlRows = await scoAuction.query(SQL`SELECT * FROM auction_events`)
   for (let i = 0; i < sqlRows.length; i++) {
+    // console.log('\x1b[31m', 'sqlRows', sqlRows[i], '\x1b[37m')
+    // console.log('\x1b[32m', 'events', events[i], '\x1b[37m')
     assert.equal(sqlRows[i].contract_address, events[i].contractAddress)
     assert.equal(sqlRows[i].sender, events[i].sender)
-    assert.equal(sqlRows[i].block_hash, events[i].blockHash)
+    // assert.equal(sqlRows[i].block_hash, events[i].blockHash)
     assert.equal(sqlRows[i].block_number, events[i].blockNumber)
     assert.equal(sqlRows[i].block_is_valid, true)
+    assert.deepEqual(sqlRows[i].fields, events[i].fields)
   }
 }
 
@@ -87,17 +94,17 @@ const simulateAuction = async () => {
   spinner.start()
   console.log('Start Running tests')
   await scoAuction.query(SQL`delete from auction_events`)
-  const depositIndex = 4
+  const depositIndex = 1
   let totalDeposit = 0
   let accountDeposits = {}
   let strikePrice = 1000
 
   // Start Auction
-  console.log(`\x1b[33m`, '1. Start Auction:')
+  console.log(`\x1b[33m`, '1. Start Auction:', '\x1b[37m')
   await contractInstance.startAuction()
 
   // Do a bunch of deposits
-  console.log(`\x1b[33m`, '2. Deposit Phase :')
+  console.log(`\x1b[33m`, '2. Deposit Phase :', '\x1b[37m')
   for (let i = 1; i <= depositIndex; i++) {
     const randDeposit = randomIntFromInterval(1000, 10000)
     await contractInstance.deposit({
@@ -108,16 +115,16 @@ const simulateAuction = async () => {
     accountDeposits[web3.eth.accounts[i]] = randDeposit
   }
 
-  // Mine blocks to move processing phase
+  // Mine blocks to move to processing phase
   await mineBlocks(10)
 
-  console.log(`\x1b[33m`, `3. In Bid Processing Phase + Set Strike Price`)
+  console.log(`\x1b[33m`, `3. In Bid Processing Phase + Set Strike Price`, '\x1b[37m')
   // Set the Strike price
   await contractInstance.setStrikePrice(strikePrice)
-  console.log(`\x1b[32m`, ` => SetStrikePrice Successful`, strikePrice)
+  console.log(`\x1b[32m`, ` => SetStrikePrice Successful`, strikePrice, '\x1b[37m')
 
   // ProcessAll Bids
-  console.log(`\x1b[33m`, '4. Bid Processing Phase - Process Bids')
+  console.log(`\x1b[33m`, '4. Bid Processing Phase - Process Bids', '\x1b[37m')
   let bidIndex = 1
   while (bidIndex <= depositIndex) {
     const bidWeiAmount = randomIntFromInterval(strikePrice,
@@ -132,27 +139,28 @@ const simulateAuction = async () => {
     sig.r,
     sig.s)
 
-    console.log(`\x1b[32m`, ` => Bid Processed successfully for =>`, web3.eth.accounts[bidIndex], tokenBidPriceInWei, bidWeiAmount)
+    console.log(`\x1b[32m`, ` => Bid Processed successfully for =>`, web3.eth.accounts[bidIndex], tokenBidPriceInWei, bidWeiAmount, '\x1b[37m')
     bidIndex++
   }
 
-  console.log(`\x1b[33m`, '5. Auction Complete Succesful')
+  console.log(`\x1b[33m`, '5. Auction Complete Succesful','\x1b[37m')
   // Complete the successful auction.
   await contractInstance.completeSuccessfulAuction()
-  console.log(`\x1b[32m`, ` => Auction completed succesfully`)
+  console.log(`\x1b[32m`, ` => Auction completed succesfully`, '\x1b[37m')
 
-  console.log(`\x1b[33m`, '5. Withdraw Remaining funds')
+  console.log(`\x1b[33m`, '5. Withdraw Remaining funds', '\x1b[37m')
   let withdrawIndex = 1
   // Withdrawing all the remaining deposits
   while (withdrawIndex <= depositIndex) {
     await contractInstance.withdraw({from: web3.eth.accounts[withdrawIndex]})
-    console.log(`\x1b[32m`, ` => Withdraw succesful for account ${withdrawIndex} `, web3.eth.accounts[withdrawIndex])
+    console.log(`\x1b[32m`, ` => Withdraw succesful for account ${withdrawIndex} `, web3.eth.accounts[withdrawIndex], '\x1b[37m')
     withdrawIndex++
   }
 
+  await wait(1500)
   // Assert the DB Values
   assertDB()
-  console.log('Assertion is done ')
+  console.log('Assertion is done ', '\x1b[37m')
   spinner.stop()
 }
 
@@ -186,7 +194,7 @@ const init = async () => {
     }
 
     spinner.start([10])
-    console.log('\x1b[36m', 'Deploying Auction contract')
+    console.log('\x1b[36m', 'Deploying Auction contract', '\x1b[37m')
     contractInstance = await setupAuction({
       testRPCProvider: 'http://localhost:8545/',
       defaultContract: 'Auction.sol',
@@ -194,8 +202,10 @@ const init = async () => {
       constructParams: deployParams
     })
 
+    console.log('contractInstance', contractInstance)
+
     // Setup Chainsaw
-    console.log('\x1b[32m', 'Setting up Chainsaw - Initializing')
+    console.log('\x1b[32m', 'Setting up Chainsaw - Initializing', '\x1b[37m')
     chainsaw = new Chainsaw(web3, [contractInstance.address], 0)
     chainsaw.addABI(contractInstance.abi)
 
@@ -203,10 +213,7 @@ const init = async () => {
     console.log('\x1b[33m', 'Initializing and setting up database', '\x1b[37m')
     const TEST_DB = { host: 'localhost', database: 'auction' }
     scoAuction = new SCOAuction(TEST_DB)
-    console.log(`\x1b[35m`, 'Initialization Complete\n',
-    `Use "curl http://localhost:3000/simulateContractCalls" to run testrunner\n`,
-    `Use "curl http://localhost:3000/assertDatabase\n" after that assert database values`)
-    console.log('\x1b[37m')
+    console.log(`\x1b[35m`, 'Initialization Complete\n', '\x1b[37m')
 
     // Chainsaw turn on polling
     chainsaw.turnOnPolling(chainLogEvents)
@@ -219,7 +226,3 @@ const init = async () => {
 
 // Initialization of the auction contract
 init()
-
-app.listen(3000, function () {
-  console.log('Auction Contract Deployment')
-})
