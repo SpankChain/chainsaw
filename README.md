@@ -16,19 +16,19 @@ npm run build
 
 For non babel transpiled es6 :
 
-```
+```javascript
 const Chainsaw = require('../build/chainsaw.js').Chainsaw
 ```
 
 if your server is a es6 babel transpiled file , import in the following way:
 
-```
+```javascript
 import { Chainsaw } from '../lib/chainsaw.js'
 ```
 
 ### 3. Instantiating chainsaw, initializing with web3 provider and deployed contract address :
 
-```
+```javascript
 const Web3 = require('web3')
 const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
 // web3 , list of contract address
@@ -42,7 +42,7 @@ chainsaw.addABI(testContract.abi)
 
 _Define event callback_ . 
 
-```
+```javascript
 // Chainsaw event callback functions
 const eventCallBack = (error, eventData) => {
   if (!error && eventData.length > 0) {
@@ -53,14 +53,14 @@ const eventCallBack = (error, eventData) => {
 
 _Turn on Polling in the following way_ : 
 
-```
+```javascript
 // Chainsaw turn on polling to listen to events
 chainsaw.turnOnPolling(eventCallBack)
 ```
 
 ### 6. Complete Working Example of Usage :
 
-```
+```javascript
 // Importing Chainsaw
 const Chainsaw = require('../build/chainsaw.js').Chainsaw
 const setup = require('../build/setup.js')
