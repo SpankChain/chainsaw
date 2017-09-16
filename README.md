@@ -1,6 +1,6 @@
 # Chainsaw
 
-Chainsaw is log extracting and log decoding library with a periodic polling feature. 
+Chainsaw is ethereum based log extracting and log decoding library with a periodic polling feature. 
 
 ## Usage of Chainsaw . 
 
