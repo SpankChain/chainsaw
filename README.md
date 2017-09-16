@@ -107,4 +107,46 @@ app.listen(3000, function () {
 })
 ```
 
+## Other Implemented Methods: 
+
+### Get undecoded logs by block number:
+
+_Function_:
+
+```javascript
+/**
+  ** Given the blocknumber return the array of logs for each transaction.
+  ** blockNumber -> Block: [ txHash1, txHash2] -> Logs: [logs1, logs2]
+  **/
+  getLogsByBlockNumber (blockNumber)
+```
+
+_Example Usage_ :
+
+```javascript
+chainsaw.getLogsByBlockNumber(web3.eth.blockNumber)
+```
+
+### Get decoded logs by block rannge:
+
+_Function_:
+
+```javascript
+/**
+  ** Given an startBlock and endBlock range, decoded logs are returned.
+  ** Params -
+  **  startBlock: Starting block to read the block. (default: latest block)
+  **  endBlock: End block to read the block.(default: latest block)
+  **/
+  getLogs (startBlock = this.eth.blockNumber, endBlock = this.eth.blockNumber)
+```
+
+_Example Usage_ : Reads from block 100 to latestBlock .
+
+```javascript
+chainsaw.getLogsByBlockNumber(100, web3.eth.blockNumber)
+```
+
+
+
 
