@@ -144,12 +144,8 @@ describe('chainsaw', () => {
     })
 
     describe('[Test polling]', () => {
-      it('[Basic Polling]', async () => {
-        // Call an contract method to mine a new block
-        await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
-        await contractInstance.deposit('0x222342', {value: 20})
-
-        chainsaw.turnOnPolling(function (error, response) {
+      const assertChainsawEvents = (_chainsaw) => {
+        _chainsaw.turnOnPolling(function (error, response) {
           if (!error && response.length > 0) {
             response.forEach((log) => {
               if (log[0].eventType === 'DidDeposit') {
@@ -185,7 +181,15 @@ describe('chainsaw', () => {
             })
           }
         })
-        chainsaw.turnOffPolling()
+        _chainsaw.turnOffPolling()
+      }
+
+      it('[Basic Polling]', async () => {
+        // Call an contract method to mine a new block
+        await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
+        await contractInstance.deposit('0x222342', {value: 20})
+
+        assertChainsawEvents(chainsaw)
       })
 
       it('[Polling : PollingInterval specific testing]', async () => {
@@ -197,44 +201,7 @@ describe('chainsaw', () => {
 
         // Wait for 1 second of polling interval
         await wait(1000)
-
-        _localChainsaw.turnOnPolling(function (error, response) {
-          if (!error && response.length > 0) {
-            response.forEach((log) => {
-              if (log[0].eventType === 'DidDeposit') {
-                assert.equal(log[0].contractAddress, contractInstance.address)
-                assert.equal(log[0].sender, web3.eth.accounts[0])
-                log[0].fields.forEach((elem) => {
-                  if (elem.name === 'channelId') {
-                    assert.equal(elem.value, '0x2223420000000000000000000000000000000000000000000000000000000000')
-                  }
-                  if (elem.name === 'amount') {
-                    assert.equal(elem.value, '20')
-                  }
-                })
-              }
-
-              if (log[0].eventType === 'DidCreateChannel') {
-                assert.equal(log[0].contractAddress, contractInstance.address)
-                assert.equal(log[0].sender, web3.eth.accounts[0])
-                log[0].fields.forEach((elem) => {
-                  switch (elem.name) {
-                    case 'viewer':
-                      assert.equal(elem.value, web3.eth.accounts[0])
-                      break
-                    case 'broadcaster':
-                      assert.equal(elem.value, web3.eth.accounts[2])
-                      break
-                    case 'channelId':
-                      assert.equal(elem.value, '0x2223420000000000000000000000000000000000000000000000000000000000')
-                      break
-                  }
-                })
-              }
-            })
-          }
-        })
-        _localChainsaw.turnOffPolling()
+        assertChainsawEvents(_localChainsaw)
       })
 
       it('[Polling : Empty polling (no new block created)]', async () => {
