@@ -11,7 +11,6 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 let web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
 
 describe('chainsaw', () => {
-  let snapshots = []
   let chainsaw
   let contractInstance
 
@@ -239,15 +238,23 @@ describe('chainsaw', () => {
       })
 
       it('[Polling : Empty polling (no new block created)]', async () => {
+        await utils.mineBlocks(1)
         const _localChainsaw = new Chainsaw(web3, [contractInstance.address], 1000)
 
+        // Turn on polling
         _localChainsaw.turnOnPolling((error, response) => {
           if (!error) {
-            console.log('response array', response)
-            assert.equal(response.length, 0, 'Already read block is never reread in polling.')
+            assert.equal(response.length, 0, 'New block is empty with no logs')
           }
-          // Turn off chainsaw inside the callback .
-          _localChainsaw.turnOffPolling()
+        })
+
+        // Turn off polling.
+        _localChainsaw.turnOffPolling()
+        // Turn on polling.
+        _localChainsaw.turnOnPolling((error, response) => {
+          if (!error) {
+            assert.equal(response.length, 0, 'Reads just the last block again')
+          }
         })
       })
     })

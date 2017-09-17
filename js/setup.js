@@ -7,7 +7,7 @@ import EthContract from 'ethjs-contract'
 import Web3 from 'web3'
 import HttpProvider from 'ethjs-provider-http'
 
-const SOL_PATH = __dirname + '/../contracts/'
+const SOL_PATH = __dirname + '/../test_contracts/'
 const TESTRPC_PORT = 8545
 const MNEMONIC = 'elegant ability lawn fiscal fossil general swarm trap bind require exchange ostrich'
 const DEFAULT_CONTRACT = 'StubPaymentChannel.sol'
