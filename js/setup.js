@@ -96,18 +96,20 @@ export async function setupAuction (opts) {
   const constructParams = opts.constructParams || {}
   const defaultContractFormat = `${defaultContract}:` + defaultContract.slice(0, defaultContract.indexOf('.'))
 
+  console.log('print opts', opts)
   // START TESTRPC PROVIDER
   let provider
   if (opts.testRPCProvider) {
     provider = new HttpProvider(opts.testRPCProvider)
   } else {
+    console.log('Provider with mnemonic is set')
     provider = TestRPC.provider({
       mnemonic: mnemonic
     })
   }
   // START TESTRPC SERVER
   if (opts.testRPCServer) {
-    console.log('setting up testrpc server')
+    console.log('Testrpc server startin manually')
     await p(TestRPC.server({
       mnemonic: mnemonic
     }).listen)(port)

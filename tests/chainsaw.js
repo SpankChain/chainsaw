@@ -4,75 +4,24 @@ import Web3 from 'web3'
 import { sha3 } from 'ethereumjs-util'
 import { Chainsaw } from '../lib/chainsaw.js'
 import setup from '../js/setup'
+import * as utils from '../utils/utils.js'
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-const solc = require('solc')
-const fs = require('fs')
-
-const contractPath = `${__dirname}/../contracts/StubPaymentChannel.sol`
-// TODO : Import the configs from chainsaw configs .
-
-let web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"))
+let web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
 
 describe('chainsaw', () => {
   let snapshots = []
-  const chainsaw = new Chainsaw(web3)
+  let chainsaw
   let contractInstance
-
-  const takeSnapshot = () => {
-    return new Promise(async (accept) => {
-      let res = await p(web3.currentProvider.sendAsync.bind(web3.currentProvider))({
-        jsonrpc: '2.0',
-        method: 'evm_snapshot',
-        id: new Date().getTime()
-      })
-      accept(res.result)
-    })
-  }
-
-  const revertSnapshot = (snapshotId) => {
-    return new Promise(async (accept) => {
-      await p(web3.currentProvider.sendAsync.bind(web3.currentProvider))({
-        jsonrpc: '2.0',
-        method: 'evm_revert',
-        params: [snapshotId],
-        id: new Date().getTime()
-      })
-      accept()
-    })
-  }
-
-  const mineBlock = () => {
-    return new Promise(async (accept) => {
-      await p(web3.currentProvider.sendAsync.bind(web3.currentProvider))({
-        jsonrpc: "2.0",
-        method: "evm_mine",
-        id: new Date().getTime()
-      })
-      accept()
-    })
-  }
-
-  const mineBlocks = (count) => {
-    return new Promise(async (accept) => {
-      let i = 0
-      while (i < count) {
-        await mineBlock()
-        i++
-      }
-      accept()
-    })
-  }
 
   before(async () => {
     contractInstance = await setup({
       testRPCProvider: 'http://localhost:8545/'
     })
-    const content = fs.readFileSync(contractPath)
-    const compiledContract = solc.compile(content.toString(), 1)
-    const abi = compiledContract.contracts[':StubPaymentChannel'].interface
-    chainsaw.addABI(JSON.parse(abi))
+
+    chainsaw = new Chainsaw(web3, [contractInstance.address])
+    chainsaw.addABI(contractInstance.abi)
   })
 
   describe('[with test contract deployed ]', () => {
@@ -82,156 +31,225 @@ describe('chainsaw', () => {
       assert.equal(contractInstance.address.length, 42)
     })
 
-    describe('[With single block range]', () => {
-      before(async() => {
-        snapshots.push(await takeSnapshot())
-      })
-
-      after(async() => {
-        await revertSnapshot(snapshots.pop())
-      })
-
-      it.skip('[getLogsByBlockNumber test with no logs/events]', async() => {
-        await mineBlocks(1)
+    describe('[getLogsByBlockNumber: With single block range]', () => {
+      it('[test with no (undecoded)logs/events]', async() => {
+        await utils.mineBlocks(1)
         const logsInTheBlock = chainsaw.getLogsByBlockNumber(web3.eth.blockNumber)
-        assert.equal(logsInTheBlock.length, 0)
+        assert.equal(logsInTheBlock.length, 0, 'Since no contract method called ,hence no logs.')
       })
 
-      it.skip('[getLogsByBlockNumber test with logs/events]', async () => {
+      it('[Invalid block number]', () => {
+        try {
+          const logsInTheBlock = chainsaw.getLogsByBlockNumber(-1)
+        } catch (error) {
+          assert.equal(error.message, 'Invalid blockNumber : blockNumber should be greater than zero and less than latestBlock.')
+        }
+      })
+
+      it('[test with (undecoded)logs/events]', async () => {
         // Create an event in the block
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
         const logsInTheBlock = chainsaw.getLogsByBlockNumber(web3.eth.blockNumber)[0][0]
         assert.equal(logsInTheBlock.address.length, 42)
         assert.isArray(logsInTheBlock.topics, 'Topics should be an array')
       })
+    })
 
-      it.skip('[A block with no logs/events]', async () => {
-        await mineBlocks(1)
+    describe('[getLogs: no startBlock and endBlock (only default)]', () => {
+      it('[getLogs: A block with no logs/events]', async () => {
+        await utils.mineBlocks(1)
         assert.equal(chainsaw.getLogs().length, 0)
       })
 
-      it.skip('[A block with decoded logs/events]', async () => {
+      it('[getLogs: A block with decoded logs/events]', async () => {
         // Create an event by calling method on the contract
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
         const eventLog = chainsaw.getLogs()[0][0]
         assert.equal(eventLog.name, 'DidCreateChannel')
         assert.equal(eventLog.address.length, 42)
         assert.isArray(eventLog.events)
+        eventLog.events.forEach((elem) => {
+          switch (elem.name) {
+            case 'viewer':
+              assert.equal(elem.value, web3.eth.accounts[0])
+              break
+            case 'broadcaster':
+              assert.equal(elem.value, web3.eth.accounts[2])
+              break
+            case 'channelId':
+              assert.equal(elem.value, '0x2223420000000000000000000000000000000000000000000000000000000000')
+              break
+          }
+        })
       })
     })
+    describe('[getLogs: With startBlock and endBlock specified]', () => {
+      it('[Get decoded logs/events for block range]', async() => {
 
-    describe('[With startBlock and endBlock specified]', () => {
-      before(async() => {
-        snapshots.push(await takeSnapshot())
-      })
-
-      after(async() => {
-        await revertSnapshot(snapshots.pop())
-      })
-
-      it.skip('[Get decoded logs/events for block range]', async() => {
-        // TODO: Finish these set of tests
+        await utils.mineBlocks(1)
         const startBlock = web3.eth.blockNumber
 
         // Create a new event
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
 
         // Mine 3 no event Blocks
-        await mineBlocks(3)
-
+        await utils.mineBlocks(3)
         await contractInstance.deposit('0x222342', {value: 20})
 
         const endBlock = web3.eth.blockNumber
-
         const logs = chainsaw.getLogs(startBlock, endBlock)
 
-        console.log('logs : ', logs)
+        logs.forEach((log) => {
+          if (log[0].eventType === 'DidDeposit') {
+            assert.equal(log[0].contractAddress, contractInstance.address)
+            assert.equal(log[0].sender, web3.eth.accounts[0])
+            log[0].fields.forEach((elem) => {
+              if (elem.name === 'channelId') {
+                assert.equal(elem.value, '0x2223420000000000000000000000000000000000000000000000000000000000')
+              }
+              if (elem.name === 'amount') {
+                assert.equal(elem.value, '20')
+              }
+            })
+          }
+
+          if (log[0].eventType === 'DidCreateChannel') {
+            assert.equal(log[0].contractAddress, contractInstance.address)
+            assert.equal(log[0].sender, web3.eth.accounts[0])
+            log[0].fields.forEach((elem) => {
+              switch (elem.name) {
+                case 'viewer':
+                  assert.equal(elem.value, web3.eth.accounts[0])
+                  break
+                case 'broadcaster':
+                  assert.equal(elem.value, web3.eth.accounts[2])
+                  break
+                case 'channelId':
+                  assert.equal(elem.value, '0x2223420000000000000000000000000000000000000000000000000000000000')
+                  break
+              }
+            })
+          }
+        })
       })
 
-      it.skip('[Test invalid block range]', () => {
-        // TODO : Fix this test This causes infinite loop , investigate
+      it('[Test invalid block range]', () => {
         const startBlock = -1
         const endBlock = web3.eth.blockNumber + 100
-        const logs = chainsaw.getLogs(startBlock, endBlock)
-        console.log('logs: ', logs)
+        try {
+          const logs = chainsaw.getLogs(startBlock, endBlock)
+        } catch (error) {
+          assert.equal(error.message, 'Invalid startBlock: Must be below web3.eth.blockNumber or startBlock cannot be below 0')
+        }
       })
     })
 
     describe('[Test polling]', () => {
-      // before(async() => {
-      //   snapshots.push(await takeSnapshot())
-      // })
-      // after(async() => {
-      //   await revertSnapshot(snapshots.pop())
-      // })
       it('[Basic Polling]', async () => {
         // Call an contract method to mine a new block
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
         await contractInstance.deposit('0x222342', {value: 20})
 
         chainsaw.turnOnPolling(function (error, response) {
-          if (!error) {
-            console.log('Response value', response)
-            assert.isAbove(response.length, 0)
-            assert.isArray(response[0][0].event, 'Events is array of parameter')
-            assert.equal(response[0][0].address, contractInstance.address)
+          if (!error && response.length > 0) {
+            response.forEach((log) => {
+              if (log[0].eventType === 'DidDeposit') {
+                assert.equal(log[0].contractAddress, contractInstance.address)
+                assert.equal(log[0].sender, web3.eth.accounts[0])
+                log[0].fields.forEach((elem) => {
+                  if (elem.name === 'channelId') {
+                    assert.equal(elem.value, '0x2223420000000000000000000000000000000000000000000000000000000000')
+                  }
+                  if (elem.name === 'amount') {
+                    assert.equal(elem.value, '20')
+                  }
+                })
+              }
+
+              if (log[0].eventType === 'DidCreateChannel') {
+                assert.equal(log[0].contractAddress, contractInstance.address)
+                assert.equal(log[0].sender, web3.eth.accounts[0])
+                log[0].fields.forEach((elem) => {
+                  switch (elem.name) {
+                    case 'viewer':
+                      assert.equal(elem.value, web3.eth.accounts[0])
+                      break
+                    case 'broadcaster':
+                      assert.equal(elem.value, web3.eth.accounts[2])
+                      break
+                    case 'channelId':
+                      assert.equal(elem.value, '0x2223420000000000000000000000000000000000000000000000000000000000')
+                      break
+                  }
+                })
+              }
+            })
           }
         })
-        await wait(20000)
-        await contractInstance.deposit('0x222342', {value: 20})
-      })
-    })
-
-    describe('[with Chainsaw initialized with contract addresses]', () => {
-      // Initialize chainsaw with contract address
-      let chainsawWithContractAddress
-      before(async() => {
-        // TODO : Deploy multiple contracts, test chainsaw logs extractions.
-        chainsawWithContractAddress = new Chainsaw(web3, [contractInstance.address])
+        chainsaw.turnOffPolling()
       })
 
-      it('[Test with chainsaw initialization ]', async() => {
-        // TODO : Finish this test
+      it('[Polling : PollingInterval specific testing]', async () => {
+        // One second polling Interval
+        const _localChainsaw = new Chainsaw(web3, [contractInstance.address], 1000)
+
         await contractInstance.createChannel(web3.eth.accounts[2], '0x222342')
-        const logs = chainsawWithContractAddress.getLogs()
-        console.log('Logs chainsaw', logs)
+        await contractInstance.deposit('0x222342', {value: 20})
+
+        // Wait for 1 second of polling interval
+        await wait(1000)
+
+        _localChainsaw.turnOnPolling(function (error, response) {
+          if (!error && response.length > 0) {
+            response.forEach((log) => {
+              if (log[0].eventType === 'DidDeposit') {
+                assert.equal(log[0].contractAddress, contractInstance.address)
+                assert.equal(log[0].sender, web3.eth.accounts[0])
+                log[0].fields.forEach((elem) => {
+                  if (elem.name === 'channelId') {
+                    assert.equal(elem.value, '0x2223420000000000000000000000000000000000000000000000000000000000')
+                  }
+                  if (elem.name === 'amount') {
+                    assert.equal(elem.value, '20')
+                  }
+                })
+              }
+
+              if (log[0].eventType === 'DidCreateChannel') {
+                assert.equal(log[0].contractAddress, contractInstance.address)
+                assert.equal(log[0].sender, web3.eth.accounts[0])
+                log[0].fields.forEach((elem) => {
+                  switch (elem.name) {
+                    case 'viewer':
+                      assert.equal(elem.value, web3.eth.accounts[0])
+                      break
+                    case 'broadcaster':
+                      assert.equal(elem.value, web3.eth.accounts[2])
+                      break
+                    case 'channelId':
+                      assert.equal(elem.value, '0x2223420000000000000000000000000000000000000000000000000000000000')
+                      break
+                  }
+                })
+              }
+            })
+          }
+        })
+        _localChainsaw.turnOffPolling()
+      })
+
+      it('[Polling : Empty polling (no new block created)]', async () => {
+        const _localChainsaw = new Chainsaw(web3, [contractInstance.address], 1000)
+
+        _localChainsaw.turnOnPolling((error, response) => {
+          if (!error) {
+            console.log('response array', response)
+            assert.equal(response.length, 0, 'Already read block is never reread in polling.')
+          }
+          // Turn off chainsaw inside the callback .
+          _localChainsaw.turnOffPolling()
+        })
       })
     })
   })
 })
-
-/*
-    it("Add Ab", async () => {
-      fs.readFile(contractPath, (error, content) =>{
-        if(!error){
-          let compiledContract = solc.compile(content.toString(), 1)
-          let abi = compiledContract.contracts[':StubPaymentChannel'].interface
-          let logDecoder = new LogDecoder();
-
-          chainsaw.run();
-        }
-      })
-    })
-  })
-
-    it.skip("Decode logs", async () => {
-      let log = {
-        logIndex: 0,
-        transactionIndex: 0,
-        transactionHash: '0xeecbdd424cc3db7567a55c6517428b2d58ae5719adf76a71dc3dfb9e3081bec2',
-        blockHash: '0x7902fbc122df3b4ada3a653d0a81442c51ef72a984e8272793ea89c8bd76e1e8',
-        blockNumber: 7,
-        address: '0xcdc731b2a28aaf66d1a32e787987e0288b1d485d',
-        data: '0x2c00000000000000000000000000000000000000000000000000000000000000',
-        topics:
-         [ '0xadc1e8a294f8415511303acc4a8c0c5906c7eb0bf2a71043d7f4b03b46a39130',
-           '0x00000000000000000000000036b9bf8edd9633d2c32bf821c493f5e438a4d345',
-           '0x000000000000000000000000f51832115d7c81e0398af7e828b0228e11dba6ff' ],
-        type: 'mined'
-                } ;
-      let logDecoder = new LogDecoder();
-      logDecoder.decodeLogs(log);
-    })
-
-})
-*/

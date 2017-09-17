@@ -305,24 +305,24 @@ describe('Auction Integration Mock', () => {
           const expectedArgs = response[0][0]
           console.log('expectedArgs', expectedArgs)
 
-          // expectedArgs.events.map(a => {
-          //   if (a.name === 'strikePriceInWei') {
-          //     assert.equal(strikePrice, a.value, 'Strike price set matches')
-          //   }
-          // })
+          expectedArgs.events.map(a => {
+            if (a.name === 'strikePriceInWei') {
+              assert.equal(strikePrice, a.value, 'Strike price set matches')
+            }
+          })
           // Insert the auction event in to database.
           await scoAuction.insertAuctionEvent(expectedArgs)
           // Test all the db table auction_events values to event log .
-          // const sqlRows = await scoAuction.query(SQL`SELECT *
-          //                                              FROM auction_events
-          //                                             WHERE auction_events.sender = ${expectedArgs.sender}
-          //                                               AND auction_events.event_name ='ProcessBidEvent'`, expectedArgs.sender)
-          // console.log('sqlRows in AuctionSuccessEvent', sqlRows[0])
-          // assert.equal(sqlRows[0].contract_address, expectedArgs.address)
-          // assert.equal(sqlRows[0].sender, expectedArgs.sender)
-          // assert.equal(sqlRows[0].block_hash, expectedArgs.blockHash)
-          // assert.equal(sqlRows[0].block_number, expectedArgs.blockNumber)
-          // assert.equal(sqlRows[0].block_is_valid, true)
+          const sqlRows = await scoAuction.query(SQL`SELECT *
+                                                       FROM auction_events
+                                                      WHERE auction_events.sender = ${expectedArgs.sender}
+                                                        AND auction_events.event_name ='ProcessBidEvent'`, expectedArgs.sender)
+          console.log('sqlRows in AuctionSuccessEvent', sqlRows[0])
+          assert.equal(sqlRows[0].contract_address, expectedArgs.address)
+          assert.equal(sqlRows[0].sender, expectedArgs.sender)
+          assert.equal(sqlRows[0].block_hash, expectedArgs.blockHash)
+          assert.equal(sqlRows[0].block_number, expectedArgs.blockNumber)
+          assert.equal(sqlRows[0].block_is_valid, true)
         }
       })
       chainsaw.turnOffPolling()
