@@ -7,6 +7,8 @@ import EthContract from 'ethjs-contract'
 import Web3 from 'web3'
 import HttpProvider from 'ethjs-provider-http'
 
+const Tx = require('ethereumjs-tx')
+
 const SOL_PATH = __dirname + '/../test_contracts/'
 const TESTRPC_PORT = 8545
 const MNEMONIC = 'elegant ability lawn fiscal fossil general swarm trap bind require exchange ostrich'
@@ -41,7 +43,6 @@ export default async function (opts) {
   }
   // START TESTRPC SERVER
   if (opts.testRPCServer) {
-    console.log('setting up testrpc server')
     await p(TestRPC.server({
       mnemonic: mnemonic
     }).listen)(port)
@@ -66,6 +67,7 @@ export default async function (opts) {
     from: accounts[defaultAcct],
     gas: 3000000
   })
+
   let contractTxHash, contractReceipt, contractObject
   if (!noDeploy) {
     // DEPLOY THE CONTRACT
@@ -96,20 +98,17 @@ export async function setupAuction (opts) {
   const constructParams = opts.constructParams || {}
   const defaultContractFormat = `${defaultContract}:` + defaultContract.slice(0, defaultContract.indexOf('.'))
 
-  console.log('print opts', opts)
   // START TESTRPC PROVIDER
   let provider
   if (opts.testRPCProvider) {
     provider = new HttpProvider(opts.testRPCProvider)
   } else {
-    console.log('Provider with mnemonic is set')
     provider = TestRPC.provider({
       mnemonic: mnemonic
     })
   }
   // START TESTRPC SERVER
   if (opts.testRPCServer) {
-    console.log('Testrpc server startin manually')
     await p(TestRPC.server({
       mnemonic: mnemonic
     }).listen)(port)

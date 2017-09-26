@@ -5,10 +5,11 @@ import { sha3 } from 'ethereumjs-util'
 import { Chainsaw } from '../lib/chainsaw.js'
 import setup from '../js/setup'
 import * as utils from '../utils/utils.js'
+import * as config from './config.json'
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-let web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
+const web3 = new Web3(new Web3.providers.HttpProvider(config.WEB3_PROVIDER))
 
 describe('chainsaw', () => {
   let chainsaw
@@ -16,9 +17,8 @@ describe('chainsaw', () => {
 
   before(async () => {
     contractInstance = await setup({
-      testRPCProvider: 'http://localhost:8545/'
+      testRPCProvider: config.WEB3_PROVIDER
     })
-
     chainsaw = new Chainsaw(web3, [contractInstance.address])
     chainsaw.addABI(contractInstance.abi)
   })

@@ -54,20 +54,20 @@ describe('Auction Integration Mock', () => {
   let chainsaw
   let scoAuction
 
-  const getSig = (tokenBidPriceInWei = 696969696969696969, bidWeiAmount = 999999999999999999, depositFromAccount = web3.eth.accounts[0]) => {
+  const getSig = (tokenBidPriceInWei = 696969696969696969, bidWeiAmount = 999999999999999999, depositFromAccount = keyPairs[0][0], privKey = keyPairs[0][1]) => {
     const msgHash = `0x${abi.soliditySHA3(['address', 'uint', 'uint'], [contractInstance.address, tokenBidPriceInWei, bidWeiAmount]).toString('hex')}`
+    const sig = ethUtil.ecsign(ethUtil.toBuffer(msgHash), Buffer.from(privKey, 'hex'))
 
-    const sig = web3.eth.sign(depositFromAccount, msgHash)
-    const {v, r, s} = ethUtil.fromRpcSig(sig)
-    console.log('r , s , v', r, s, v)
+    // Test ecrecovering the right pub key.
+    // const pubKey = ethUtil.ecrecover(ethUtil.toBuffer(msgHash), sig.v, sig.r, sig.s)
+    // // console.log('pubKey', pubKey)
+    // const addrBuf = ethUtil.pubToAddress(pubKey)
+    // const addr = ethUtil.bufferToHex(addrBuf)
+    // console.log('Addresses are same', keyPairs[0][0], addr)
 
-    const pubKey = ethUtil.ecrecover(ethUtil.toBuffer(msgHash), v, r, s)
-    // console.log('pubKey', pubKey)
-    const addrBuf = ethUtil.pubToAddress(pubKey)
-    const addr = ethUtil.bufferToHex(addrBuf)
-    console.log('web3 acccounts are the same', web3.eth.accounts[0], addr)
-    return {v, r, s}
+    return sig
   }
+
   describe('[AuctionFlow : Multiple Deposits and multiple withdraws flow TestRPC]', () => {
     let accountDeposits = {}
     let deployParams
@@ -251,8 +251,6 @@ describe('Auction Integration Mock', () => {
       let bidIndex = 1
       // Lets accept the random Bids
       while (bidIndex <= depositIndex) {
-        console.log('strikePrice', strikePrice)
-        console.log('total deposit each account', accountDeposits[web3.eth.accounts[bidIndex]])
         const bidWeiAmount = utils.randomIntFromInterval(strikePrice,
           accountDeposits[web3.eth.accounts[bidIndex]])
         const tokenBidPriceInWei = utils.randomIntFromInterval(strikePrice, bidWeiAmount)
@@ -260,24 +258,12 @@ describe('Auction Integration Mock', () => {
         // Get v, r, s
         const ret = await getSig(tokenBidPriceInWei, bidWeiAmount, web3.eth.accounts[bidIndex])
         // Calling contract method processBid
-        console.log('tokenBidPriceInWei', tokenBidPriceInWei)
-        console.log('bidWeiAmount', bidWeiAmount)
-        await contractInstance.processBid(
-        tokenBidPriceInWei,
-        bidWeiAmount,
-        1,
-        ret.v,
-        ret.r,
-        ret.s)
+
+        await contractInstance.processBid(tokenBidPriceInWei, bidWeiAmount, 1, ret.v, ret.r, ret.s)
 
         chainsaw.turnOnPolling(async function (error, response) {
-          console.log('Polling response is here', response)
-
           if (!error) {
             const expectedArgs = response[0][0]
-            console.log(`\x1b[33m`, 'ProcessBid event ')
-            console.log(bidIndex, expectedArgs)
-
             // Insert the auction event in to database.
             await scoAuction.insertAuctionEvent(expectedArgs)
             // Test all the db table auction_events values to event log .
@@ -285,7 +271,6 @@ describe('Auction Integration Mock', () => {
                                                          FROM auction_events
                                                         WHERE auction_events.sender = ${expectedArgs.sender}
                                                           AND auction_events.event_name ='ProcessBidEvent'`, expectedArgs.sender)
-            console.log('sqlRows in ProcessBidEvent', sqlRows[0])
             assert.equal(sqlRows[0].contract_address, expectedArgs.address)
             assert.equal(sqlRows[0].sender, expectedArgs.sender)
             assert.equal(sqlRows[0].block_hash, expectedArgs.blockHash)
@@ -303,8 +288,6 @@ describe('Auction Integration Mock', () => {
       chainsaw.turnOnPolling(async function (error, response) {
         if (!error) {
           const expectedArgs = response[0][0]
-          console.log('expectedArgs', expectedArgs)
-
           expectedArgs.events.map(a => {
             if (a.name === 'strikePriceInWei') {
               assert.equal(strikePrice, a.value, 'Strike price set matches')
@@ -317,7 +300,6 @@ describe('Auction Integration Mock', () => {
                                                        FROM auction_events
                                                       WHERE auction_events.sender = ${expectedArgs.sender}
                                                         AND auction_events.event_name ='ProcessBidEvent'`, expectedArgs.sender)
-          console.log('sqlRows in AuctionSuccessEvent', sqlRows[0])
           assert.equal(sqlRows[0].contract_address, expectedArgs.address)
           assert.equal(sqlRows[0].sender, expectedArgs.sender)
           assert.equal(sqlRows[0].block_hash, expectedArgs.blockHash)
@@ -336,8 +318,6 @@ describe('Auction Integration Mock', () => {
         chainsaw.turnOnPolling(async function (error, response) {
           if (!error) {
             const expectedArgs = response[0][0]
-            console.log('expectedArgs', expectedArgs)
-
             expectedArgs.events.map(a => {
               if (a.name === 'tokensReceived') {
                 assert.isAtLeast(a.value, 0, 'Tokens received above zero')
@@ -365,199 +345,4 @@ describe('Auction Integration Mock', () => {
       }
     })
   })
-  // describe('[AuctionFlow : Single event flow TestRPC]', () => {
-  //   before(async () => {
-  //     const inputContracts = {
-  //       'SafeMath.sol': fs.readFileSync(`${__dirname}/../contracts/SafeMath.sol`).toString(),
-  //       'Token.sol': fs.readFileSync(`${__dirname}/../contracts/Token.sol`).toString(),
-  //       'IERC20Token.sol': fs.readFileSync(`${__dirname}/../contracts/IERC20Token.sol`).toString(),
-  //       'StandardToken.sol': fs.readFileSync(`${__dirname}/../contracts/StandardToken.sol`).toString(),
-  //       'HumanStandardToken.sol': fs.readFileSync(`${__dirname}/../contracts/HumanStandardToken.sol`).toString(),
-  //       'Auction.sol': fs.readFileSync(`${__dirname}/../contracts/Auction.sol`).toString()
-  //     }
-  //     // Deploy the auction contract
-  //     // See if the auction contract looks like .
-  //     contractInstance = await setupAuction({
-  //       testRPCProvider: 'http://localhost:8545/',
-  //       defaultContract: 'Auction.sol',
-  //       input: inputContracts,
-  //       constructParams: {
-  //         'tokenSupply': 1000000000,
-  //         'tokenName': 'TESTRPCTOKEN',
-  //         'tokenDecimals': 9,
-  //         'tokenSymbol': 'TST',
-  //         'weiWallet': web3.eth.accounts[5],
-  //         'tokenWallet': web3.eth.accounts[6],
-  //         'minDepositInWei': 200,
-  //         'minWeiToRaise': 1000,
-  //         'maxWeiToRaise': 100000000000000000000,
-  //         'minTokensForSale': 1,
-  //         'maxTokensForSale': 500000000,
-  //         'maxTokenBonusPercentage': 40,
-  //         'depositWindowInBlocks': 10,
-  //         'processingWindowInBlocks': 1000
-  //       }
-  //     })
-  //
-  //     // Chainsaw and Database setup.
-  //     chainsaw = new Chainsaw(web3, [contractInstance.address])
-  //     chainsaw.addABI(contractInstance.abi)
-  //     const TEST_DB = { host: 'localhost', database: 'auction' }
-  //     scoAuction = new SCOAuction(TEST_DB)
-  //     //await scoAuction.setupDatabase()
-  //   })
-  //
-  //   it('Connect to Postgres', async () => {
-  //     let pgVersion = await scoAuction.selftest()
-  //     assert.isAbove(+pgVersion.pg_version, 90400)
-  //   })
-  //
-  //   describe.skip('[with Auction contract deployed]', () => {
-  //     it('[test contract deployment successful]', () => {
-  //       assert.notEqual(contractInstance, undefined)
-  //       assert.equal(contractInstance.address.length, 42)
-  //     })
-  //     after(async () => {
-  //       chainsaw.turnOffPolling()
-  //     })
-  //
-  //     describe.skip('DepositEvent', () => {
-  //       it('[deposit: One contract method call]', async () => {
-  //         await contractInstance.deposit({
-  //           sender: web3.eth.accounts[0],
-  //           value: 1000 })
-  //
-  //         chainsaw.turnOnPolling(async function (error, response) {
-  //           console.log('Polling response is here', response)
-  //
-  //           if (!error) {
-  //             const expectedArgs = response[0][0]
-  //
-  //             // 1 . Test the state on the chain by parameter by contract method call.
-  //             expectedArgs.events.map(a => {
-  //               if (a.name === 'depositInWei') {
-  //                 assert.equal(1000, a.value, 'Correct DepositInWei for this account')
-  //               }
-  //
-  //               if (a.name === 'totalDepositInWei') {
-  //                 assert.equal(1000, a.value, 'Total Deposit is correct')
-  //               }
-  //
-  //               if (a.name === 'buyerAddress') {
-  //                 assert.equal(web3.eth.accounts[0], a.value, 'Deposit address is correct')
-  //               }
-  //             })
-  //           }
-  //         })
-  //       })
-  //       it('[deposit: Multiple deposit calls with random values]', async () => {
-  //       })
-  //     })
-  //
-  //     describe.skip('SetStrikePriceEvent', () => {
-  //       it('[setStrikePrice: Not in bid processingPhase]', async () => {
-  //
-  //         try {
-  //           await contractInstance.setStrikePrice(696)
-  //         } catch (error) {
-  //           assert.ok(error, 'Not in bid phase cannot set the strike phase.')
-  //         }
-  //       })
-  //       it('[setStrikePrice: In bid phase success]', async () => {
-  //         // Will change to bid phase after mining 10 blocks.
-  //         await utils.mineBlocks(10)
-  //         await contractInstance.setStrikePrice(696)
-  //
-  //         chainsaw.turnOnPolling(async function (error, response) {
-  //           console.log('Polling response is here', response)
-  //           if (!error) {
-  //             const queryOne = sinon.stub(scoAuction, 'queryOne').resolves(true)
-  //             const expectedArgs = response[0][0]
-  //             const chainId = 1
-  //             await scoAuction.insertAuctionEvent(chainId, expectedArgs)
-  //             queryOne.callsArgWithAsync(2, 'res', SQL`
-  //               SELECT insert_auction_event(${chainId}, ${expectedArgs});`)
-  //             queryOne.restore()
-  //           }
-  //         })
-  //       })
-  //     })
-  //
-  //     describe.skip('ProcessBidEvent', () => {
-  //       it('[processBid: One contract method call]', async () => {
-  //         const tokenBidPriceInWei = 696
-  //         const bidWeiAmount = 1000
-  //         // Get v, r, s
-  //         const ret = await getSig(tokenBidPriceInWei, bidWeiAmount)
-  //
-  //         // Calling contract method processBid
-  //         await contractInstance.processBid(
-  //         tokenBidPriceInWei,
-  //         bidWeiAmount,
-  //         1,
-  //         ret.v,
-  //         ret.r,
-  //         ret.s)
-  //
-  //         chainsaw.turnOnPolling(async function (error, response) {
-  //           console.log('Polling response is here', response)
-  //
-  //           if (!error) {
-  //             const queryOne = sinon.stub(scoAuction, 'queryOne').resolves(true)
-  //             const expectedArgs = response[0][0]
-  //             const chainId = 1
-  //             await scoAuction.insertAuctionEvent(chainId, expectedArgs)
-  //             queryOne.callsArgWithAsync(2, 'res', SQL`
-  //               SELECT insert_auction_event(${chainId}, ${expectedArgs});`)
-  //             queryOne.restore()
-  //           }
-  //         })
-  //       })
-  //     })
-  //
-  //     describe.skip('AuctionSuccessEvent', () => {
-  //       it('[completeSuccessfulAuction: One contract method call]', async () => {
-  //       //  await mineBlocks(1000)
-  //         console.log('Auction Success Event => ')
-  //         await contractInstance.completeSuccessfulAuction()
-  //         chainsaw.turnOnPolling(async function (error, response) {
-  //           console.log('Polling response is here', response)
-  //
-  //           if (!error) {
-  //             const queryOne = sinon.stub(scoAuction, 'queryOne').resolves(true)
-  //             const expectedArgs = response[0][0]
-  //             const chainId = 1
-  //             await scoAuction.insertAuctionEvent(chainId, expectedArgs)
-  //             queryOne.callsArgWithAsync(2, 'res', SQL`
-  //               SELECT insert_auction_event(${chainId}, ${expectedArgs});`)
-  //             queryOne.restore()
-  //           }
-  //         })
-  //       })
-  //     })
-  //
-  //     describe.skip('WithdrawEvent', () => {
-  //       before(async () => {
-  //         // Before should have snapshot of auction complete phase
-  //       })
-  //       it('[withdraw: One contract method call]', async () => {
-  //         await contractInstance.withdraw({ sender: web3.eth.accounts[0] })
-  //
-  //         chainsaw.turnOnPolling(async function (error, response) {
-  //           console.log('Polling response is here', response)
-  //
-  //           if (!error) {
-  //             const queryOne = sinon.stub(scoAuction, 'queryOne').resolves(true)
-  //             const expectedArgs = response[0][0]
-  //             const chainId = 1
-  //             await scoAuction.insertAuctionEvent(chainId, expectedArgs)
-  //             queryOne.callsArgWithAsync(2, 'res', SQL`
-  //               SELECT insert_auction_event(${chainId}, ${expectedArgs});`)
-  //             queryOne.restore()
-  //           }
-  //         })
-  //       })
-  //     })
-  //   })
-  // })
 })
