@@ -9,7 +9,7 @@
     "mocha": "mocha ./tests/loader_test.js -R spec --timeout 200000",
     "transpile": "babel testRunner lib js utils -d output",
     "testRunner": "npm run transpile && npm start",
-    "build": "babel lib js utils examples -d build",
+    "build": "babel lib js utils -d build",
     "examples": "npm run build && node ./build/chainsaw_import_examples.js"
   },
   "repository": {
