@@ -1,6 +1,12 @@
+build
 lib
 js
 utils
 test_contracts
 tests
-
+buyer_adderess.txt
+examples
+loader_test.js
+output
+node_modules
+distribution
