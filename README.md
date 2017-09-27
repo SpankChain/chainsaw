@@ -127,7 +127,7 @@ _Example Usage_ :
 chainsaw.getLogsByBlockNumber(web3.eth.blockNumber)
 ```
 
-### Get decoded logs by block rannge:
+### Get decoded logs by block range:
 
 _Function_:
 
