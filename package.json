@@ -1,22 +1,22 @@
 {
-  "name": "chainsaw",
-  "version": "1.0.0",
-  "description": "\"Hub for watching the events and cutting chainsaw\" ",
+  "name": "eth-chainsaw",
+  "version": "1.0.3",
+  "description": "\"Library for polling ethereum blockchain events and decoding the event logs.\" ",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node ./output/server.js",
     "mocha": "mocha ./tests/loader_test.js -R spec --timeout 200000",
     "transpile": "babel testRunner lib js utils -d output",
     "testRunner": "npm run transpile && npm start",
-    "build": "babel lib js utils -d build",
-    "examples": "npm run build && node ./build/chainsaw_import_examples.js"
+    "build": "babel lib -d distribution",
+    "build-all": "babel lib js utils -d build",
+    "prepublish": "npm run build"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SpankChain/chainsaw.git"
   },
-  "author": "",
+  "author": "yogeshgo05",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/SpankChain/chainsaw/issues"
