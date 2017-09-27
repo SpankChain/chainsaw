@@ -9,7 +9,7 @@ Chainsaw is ethereum based log extracting and log decoding library with a period
 Run the below command in the chainsaw directory .
 
 ```
-npm run build
+npm install chainsaw
 ```
 
 ### 2. Importing the chainsaw :
@@ -17,13 +17,13 @@ npm run build
 For non babel transpiled es6 :
 
 ```javascript
-const Chainsaw = require('../build/chainsaw.js').Chainsaw
+const Chainsaw = require('chainsaw').Chainsaw
 ```
 
 if your server is a es6 babel transpiled file , import in the following way:
 
 ```javascript
-import { Chainsaw } from '../lib/chainsaw.js'
+import { Chainsaw } from 'chainsaw'
 ```
 
 ### 3. Instantiating chainsaw, initializing with web3 provider and deployed contract address :
