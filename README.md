@@ -23,7 +23,7 @@ const Chainsaw = require('eth-chainsaw').Chainsaw
 if your server is a es6 babel transpiled file , import in the following way:
 
 ```javascript
-import { Chainsaw } from 'chainsaw'
+import { Chainsaw } from 'eth-chainsaw'
 ```
 
 ### 3. Instantiating chainsaw, initializing with web3 provider and deployed contract address :
