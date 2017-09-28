@@ -9,7 +9,7 @@ import HttpProvider from 'ethjs-provider-http'
 
 const Tx = require('ethereumjs-tx')
 
-const SOL_PATH = __dirname + '/../../test_contracts/'
+const SOL_PATH = __dirname + '/../test_contracts/'
 const TESTRPC_PORT = 8545
 const MNEMONIC = 'elegant ability lawn fiscal fossil general swarm trap bind require exchange ostrich'
 const DEFAULT_CONTRACT = 'StubPaymentChannel.sol'
