@@ -63,7 +63,7 @@ chainsaw.turnOnPolling(eventCallBack)
 ```javascript
 // Importing Chainsaw
 const Chainsaw = require('eth-chainsaw').Chainsaw
-[setup.js can be found here] (./tests/setup.js)
+[a relative link] (./tests/setup.js)
 const setup = require('./tests/setup.js')
 
 const Web3 = require('web3')
