@@ -1,15 +1,11 @@
 {
   "name": "eth-chainsaw",
-  "version": "1.0.4",
+  "version": "1.0.7",
   "description": "\"Library for polling ethereum blockchain events and decoding the event logs.\" ",
   "main": "./dist/chainsaw.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "mocha": "mocha ./tests/loader_test.js -R spec --timeout 200000",
-    "transpile": "babel testRunner lib js utils -d output",
-    "testRunner": "npm run transpile && npm start",
+    "test": "mocha ./tests/loader_test.js -R spec --timeout 200000",
     "build": "babel lib -d dist",
-    "build-all": "babel lib js utils -d build",
     "prepublish": "npm run build"
   },
   "repository": {
@@ -52,11 +48,7 @@
     "ethjs-provider-http": "^0.1.6",
     "ethjs-query": "^0.2.9",
     "express": "^4.15.3",
-    "jsonfile": "^3.0.0",
     "mocha": "^3.4.2",
-    "mongo": "^0.1.0",
-    "mongojs": "^2.4.0",
-    "node-webhooks": "^1.2.4",
     "pg-async": "^3.1.0",
     "requestify": "^0.2.5",
     "secp256k1": "^3.3.0",
