@@ -3,8 +3,8 @@ import p from 'es6-promisify'
 import Web3 from 'web3'
 import { sha3 } from 'ethereumjs-util'
 import { Chainsaw } from '../lib/chainsaw.js'
-import setup from '../js/setup'
-import * as utils from '../utils/utils.js'
+import setup from './js/setup'
+import * as utils from './utils/utils.js'
 import * as config from './config.json'
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -115,6 +115,7 @@ describe('chainsaw', () => {
           if (log[0].eventType === 'DidCreateChannel') {
             assert.equal(log[0].contractAddress, contractInstance.address)
             assert.equal(log[0].sender, web3.eth.accounts[0])
+          
             log[0].fields.forEach((elem) => {
               switch (elem.name) {
                 case 'viewer':
