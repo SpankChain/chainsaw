@@ -177,7 +177,7 @@ chainsaw.getLogsByBlockNumber(100, web3.eth.blockNumber)
 ### Running chainsaw tests  
 
 ```
-  npm run mocha
+  npm test
 ```
 
 Please make sure to edit config.json with web3 http provider of your choice . If you do use anything other than 
