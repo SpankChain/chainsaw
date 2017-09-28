@@ -49,8 +49,6 @@
     "ethjs-query": "^0.2.9",
     "express": "^4.15.3",
     "mocha": "^3.4.2",
-    "pg-async": "^3.1.0",
-    "requestify": "^0.2.5",
     "secp256k1": "^3.3.0",
     "simple-spinner": "0.0.5",
     "sinon": "^3.2.1",
