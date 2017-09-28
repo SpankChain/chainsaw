@@ -63,7 +63,7 @@ chainsaw.turnOnPolling(eventCallBack)
 ```javascript
 // Importing Chainsaw
 const Chainsaw = require('eth-chainsaw').Chainsaw
-const setup = require('../build/setup.js')
+const setup = require('./tests/setup.js')
 
 const Web3 = require('web3')
 const app = require('express')()
@@ -147,6 +147,43 @@ _Example Usage_ : Reads from block 100 to latestBlock .
 chainsaw.getLogsByBlockNumber(100, web3.eth.blockNumber)
 ```
 
+### Chainsaw event object format 
 
+```json
+ { 
+  "name": "DidCreateChannel",
+  "events":
+   [ { "name": "viewer",
+       "type": "address",
+       "value": "0x50f485d16569013b785524c8d96720cee14fcf8b" },
+     { "name": "broadcaster",
+       "type": "address",
+       "value": "0x488767fdbd05d7c516357df8a6495171c20f2d81" },
+     { "name": "channelId",
+       "type": "bytes32",
+       "value": "0x2223420000000000000000000000000000000000000000000000000000000000" } ],
+  "address": "0x454671f51b892b1597488235785279a1bcb42600",
+  "logIndex": 0,
+  "blockHash": "0xe1ff93d04753a5750ba0827de2d8067b21b8fbe47ff10cd3560a5e98b7ea67e7",
+  "blockNumber": 98,
+  "contractAddress": "0x454671f51b892b1597488235785279a1bcb42600",
+  "sender": "0x50f485d16569013b785524c8d96720cee14fcf8b",
+  "receiver": "0x454671f51b892b1597488235785279a1bcb42600",
+  "ts": 1506492156 
+  }
+  ```
+  
+### Running chainsaw tests  
 
+```
+  npm run mocha
+```
 
+Please make sure to edit config.json with web3 http provider of your choice . If you do use anything other than 
+testrpc for running tests , please make sure that first 10 accounts `web3.eth.accounts`  are unlocked and has some ether to cover the gas cost for calling contract methods . 
+
+```json
+{
+  "WEB3_PROVIDER": "http://localhost:8545"
+}
+```
