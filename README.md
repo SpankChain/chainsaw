@@ -145,7 +145,7 @@ _Function_:
 _Example Usage_ : Reads from block 100 to latestBlock .
 
 ```javascript
-chainsaw.getLogsByBlockNumber(100, web3.eth.blockNumber)
+chainsaw.getLogs(100, web3.eth.blockNumber)
 ```
 
 ### Chainsaw event object format 
