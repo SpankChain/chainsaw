@@ -1,6 +1,6 @@
 {
   "name": "eth-chainsaw",
-  "version": "1.0.7",
+  "version": "1.1.1",
   "description": "\"Library for polling ethereum blockchain events and decoding the event logs.\" ",
   "main": "./dist/chainsaw.js",
   "scripts": {
